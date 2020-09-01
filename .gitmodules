@@ -1,0 +1,3 @@
+[submodule "modred"]
+	path = modred
+	url = https://github.com/belson17/modred.git
