@@ -22,14 +22,22 @@ class CSimulator(object):
         self.lastUpdateTimesRt = numpy.array([0])
     
 
-    def SpawnObject(self, nObj, params):
+    def SpawnObject(self, nObj, *params):
         # Can we get control of the cv?
-        obj = nObj(params)
+        obj = nObj(*params)
 
         with self.objLock:
             self.objects.append(obj)
 
         return obj
+
+
+    def AddObject(self, nObj):
+        # Can we get control of the cv?
+        with self.objLock:
+            self.objects.append(nObj)
+
+        return nObj
             
 
     def BeginPlay(self):
