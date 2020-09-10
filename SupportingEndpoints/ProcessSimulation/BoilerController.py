@@ -4,6 +4,7 @@
 # No dontrol done here
 
 from .Controller import AController
+from .PID import PIDController
 
 class ABoilerController(AController):
     def __init__(self, lowWaterLevel, highWaterLevel, setpoint):
@@ -11,6 +12,7 @@ class ABoilerController(AController):
         self.highWaterAlert = highWaterLevel
         self.temperatureSetPoint = setpoint
         self.Pawn = None
+        self.PID = PIDController(setpoint, 2, 0.00025, 3)
         super().__init__()
 
 
@@ -25,7 +27,10 @@ class ABoilerController(AController):
             # Water Power Level
             # Dumb System
             #if self.Pawn.GetBoilerWaterTemp() < self.temperatureSetPoint:
-            r = self.Pawn.SetBoilerPower((self.temperatureSetPoint - self.Pawn.GetBoilerWaterTemp()) * 100)
+            
+            r = self.Pawn.SetBoilerPower(self.PID.Update(self.Pawn.GetBoilerWaterTemp(), DeltaTime))
+            #print(r)
+            #r = self.Pawn.SetBoilerPower((self.temperatureSetPoint - self.Pawn.GetBoilerWaterTemp()) * 100)
             #print("Boiler set to {}%".format(r *  100))
 
 

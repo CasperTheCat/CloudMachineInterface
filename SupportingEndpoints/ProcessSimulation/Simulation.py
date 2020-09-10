@@ -47,6 +47,10 @@ class CSimulator(object):
             self.trSimThread.start()
             self.bIsPlaying = True
 
+    def SetTimeDilation(self, val):
+        with self.objLock:
+            self.timeDilation = val
+
     def ProcessAvgFramerate(self):
         realWindow = min(30, len(self.lastUpdateTimes))
 
