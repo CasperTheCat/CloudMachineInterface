@@ -5,6 +5,8 @@
 
 from .Controller import AController
 from .PID import PIDController
+from .StdPID import StdPIDController
+import math
 
 class ABoilerController(AController):
     def __init__(self, lowWaterLevel, highWaterLevel, setpoint):
@@ -12,16 +14,40 @@ class ABoilerController(AController):
         self.highWaterAlert = highWaterLevel
         self.temperatureSetPoint = setpoint
         self.Pawn = None
-        self.PID = PIDController(setpoint, 2, 0.00025, 3)
+        #self.PID = PIDController(setpoint, 100, 0, 0)
+        self.PID = PIDController(setpoint, 16, 0.0025, 8)
+        #self.PID = StdPIDController(setpoint, 2, 2000, 1000)
+        self.accTime = 0
         super().__init__()
 
 
     def Tick(self, DeltaTime: float):
         if self.Pawn:
-            # Waterlevels
+            self.accTime += DeltaTime
+
+            pinOut = (math.sin(self.accTime * 0.01) * math.sin(self.accTime * 0.0001) * math.sin(self.accTime * 0.000001) + 1) * 0.1
+            pinOut = math.sin(self.accTime * 0.01) * ((math.sin(self.accTime * 0.01) + math.sin(self.accTime * 0.01 * 1/3)) * 0.5) ** 2 * 1
+            pinOut *= math.sin((self.accTime + 0.01) * 0.001)
+            pinOut *= math.sin((self.accTime + 0.05) * 0.005)
+            pinOut *= math.sin((self.accTime * 0.00003))
+            #pinOut = (pinOut + 1.0) * 0.5
+            pinOut = (pinOut) + 0.25
+            pinOut = max(pinOut, 0)
+            self.Pawn.SetOutflowRate(pinOut ** 2 * .75)
+
+
+            pinIn = ((math.sin(self.accTime * 0.001) * math.sin(self.accTime * 0.0021)) + 1) * 0.1
+            pinIn = math.sin(self.accTime * 0.001)
+            pinIn *= math.sin(self.accTime * 0.000314)
+            pinIn *= math.sin((self.accTime + 1) * 0.001)
+            pinIn = (pinIn + 1) * 0.5
+            self.Pawn.SetInflowRate(pinIn * 0.5)
+
+            # # Waterlevels
             if self.Pawn.GetWaterLevel() < self.lowWaterAlert:
-                self.Pawn.SetInflowRate(1)
-            elif self.Pawn.GetWaterLevel() > self.highWaterAlert:
+                self.Pawn.SetOutflowRate(0)
+
+            if self.Pawn.GetWaterLevel() > self.highWaterAlert:
                 self.Pawn.SetInflowRate(0)
 
             # Water Power Level

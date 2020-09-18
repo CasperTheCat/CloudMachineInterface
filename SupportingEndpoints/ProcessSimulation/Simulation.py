@@ -47,9 +47,51 @@ class CSimulator(object):
             self.trSimThread.start()
             self.bIsPlaying = True
 
+
+    def SimulateNTicks(self, nticks, timestep):
+        limit = 0
+        # As fast as possible
+        delayedFramerate = numpy.zeros(10)
+        delayCount = 0
+
+        while limit < nticks:
+            with self.objLock:
+                # Update last frame (It's the start of the frame)
+                # That way, time is consistent over the whole frame
+                deltaTime = timestep * self.timeDilation
+
+
+                # HelloWorld
+                delayedFramerate[delayCount] = deltaTime
+                delayCount += 1
+
+                # Handle Updating Graph
+                if delayCount == 10:
+                    # Process before we reset!
+                    baseTime = self.lastUpdateTimesRt[-1]
+                    
+                    self.lastUpdateTimes = numpy.concatenate([self.lastUpdateTimes, delayedFramerate])
+                    self.lastUpdateTimesRt = numpy.concatenate([self.lastUpdateTimesRt, delayedFramerate + baseTime])
+
+                    removalCutter = numpy.argmax(self.lastUpdateTimesRt > (deltaTime + baseTime - 30))
+
+                    self.lastUpdateTimes = self.lastUpdateTimes[removalCutter:]
+                    holdover = self.lastUpdateTimesRt[removalCutter]
+                    self.lastUpdateTimesRt = self.lastUpdateTimesRt[removalCutter:] - holdover
+
+                    delayCount = 0
+                
+                limit += 1
+
+                # Tick the world
+                for i in self.objects:
+                    i.Tick(deltaTime)
+
+
     def SetTimeDilation(self, val):
         with self.objLock:
             self.timeDilation = val
+
 
     def ProcessAvgFramerate(self):
         realWindow = min(30, len(self.lastUpdateTimes))
@@ -57,6 +99,7 @@ class CSimulator(object):
         comp = numpy.convolve(self.lastUpdateTimes, numpy.ones((realWindow,))/realWindow, mode='valid')
 
         return 1 / numpy.mean(comp)
+
 
     def Reaper(self):
         while self.shouldRun:
@@ -68,9 +111,11 @@ class CSimulator(object):
                     if i.isDead:
                         del i
 
+
     def Shutdown(self):
         self.shouldRun = False
-        self.trSimThread.join()
+        if self.trSimThread:
+            self.trSimThread.join()
        # self.trGarbageCollectionThread.join()
 
 

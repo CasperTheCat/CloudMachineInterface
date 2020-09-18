@@ -60,8 +60,8 @@ class ABoiler(AActor):
         # In Handle Water!
         lWaterIncoming = self.waterInRatePerSecond * DeltaTime
 
-        self.waterOutPres = self.waterOutRatePerSecond * self.waterVolCurrent
-        lWaterLeaving = self.waterOutPres * DeltaTime
+        #self.waterOutPres = self.waterOutRatePerSecond * self.waterVolCurrent
+        lWaterLeaving = self.waterOutRatePerSecond * DeltaTime
 
         self.waterVolCurrent -= lWaterLeaving * 0.5
 

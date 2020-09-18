@@ -4,7 +4,7 @@ from ProcessSimulation import CSimulator
 from ProcessSimulation import AActor, ABoiler, ABoilerController
 import time
 
-simulator = CSimulator(6000, 600000)
+simulator = CSimulator(600, 600000)
 #simulator = CSimulator(1, 200000)
 
 boiler = simulator.SpawnObject(ABoiler, 10000, 0, 80, 30)
