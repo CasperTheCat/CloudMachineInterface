@@ -36,16 +36,18 @@ solvedSize = resolution / TargetDPI
 
 fig = matplotlib.pyplot.figure(dpi=TargetDPI, figsize=solvedSize)#figsize=(lScalar*scaleWidth, min((lScalar * scaleWidth*scaleWidth / 16), max(16, (lScalar * 18 / 16)))))
 ax = matplotlib.pyplot.axes()
-ax2 = ax.twiny()
+#ax2 = ax.twin()
 dra, = ax.plot([],[])
 two, = ax.plot([],[])
+three, = ax.plot([],[])
+four, = ax.plot([],[])
 
 iTime = 30
 
 color = (0.05,0.05,0.05)
 # ax.plot([-5,iTime+5], [60,60])
 # ax.plot([-5,iTime+5], [30,30])
-ax.axhline(spTemp)
+ax.axhline(spTemp, linestyle='--', color='red')
 ax.yaxis.grid(True, color='white')
 
 
@@ -66,6 +68,8 @@ ax.spines['left'].set_color('white')
 
 dataP = []#[0]# * iTime 
 dataT = []
+dataS = []
+dataX = []
 
 #input("Press Any Key")
 
@@ -77,7 +81,8 @@ try:
 
         dataP = numpy.concatenate([dataP, [boiler.GetBoilerWaterTemp()]])
         dataT = numpy.concatenate([dataT, [boiler.boilerPercent * 100]])
-        #dataT = numpy.concatenate([dataT, [boiler.waterInRatePerSecond * 100]])
+        dataX = numpy.concatenate([dataX, [boiler.waterOutRatePerSecond * 100]])
+        dataS = numpy.concatenate([dataS, [boiler.waterVolCurrent]])
 
         #removalCutter = numpy.argmax(dataP > (dataP[-1] - iTime))
 
@@ -85,10 +90,16 @@ try:
         at = 0#max((len(dataP) - 1) - iTime, 0)
         dataP = dataP[at:]
         dataT = dataT[at:]
+        dataS = dataS[at:]
+        dataX = dataX[at:]
         dra.set_xdata(numpy.arange(0, len(dataP)) * simulator.timeDilation)
         dra.set_ydata(dataT)
         two.set_xdata(numpy.arange(0, len(dataP)) * simulator.timeDilation)
         two.set_ydata(dataP)
+        three.set_xdata(numpy.arange(0, len(dataP)) * simulator.timeDilation)
+        three.set_ydata(dataS)
+        four.set_xdata(numpy.arange(0, len(dataP)) * simulator.timeDilation)
+        four.set_ydata(dataX)
 
         ax.set_xlim(left=-5, right=len(dataP) * simulator.timeDilation +5)
 

@@ -22,10 +22,14 @@ class ABoiler(AActor):
         self.boilerPercent = 0
         self.boilerCapacity = initBoilerPowerWatts
 
+        self.SetBoilerPercent = 0
+
         self.powerUseWatts = 0
 
         super().__init__()
-        
+    
+    def LerpInterp(self, To, From, Step, Time):
+        return From + (To - From) * (Step / Time)
 
     def GetWaterLevel(self):
         return self.waterVolCurrent
@@ -52,11 +56,13 @@ class ABoiler(AActor):
 
     def SetBoilerPower(self, Percent: float):
         sanitisedPercent = max(min(Percent / 100, 1), 0)
-        self.boilerPercent = sanitisedPercent
+        self.SetBoilerPercent = sanitisedPercent
 
         return self.boilerPercent
 
     def Tick(self, DeltaTime: float):
+        self.boilerPercent = self.LerpInterp(self.SetBoilerPercent, self.boilerPercent, DeltaTime, 300)
+
         # In Handle Water!
         lWaterIncoming = self.waterInRatePerSecond * DeltaTime
 
