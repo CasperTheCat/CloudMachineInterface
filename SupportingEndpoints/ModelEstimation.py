@@ -7,11 +7,9 @@ from ProcessSimulation import AActor, ABoiler, ABoilerController
 import time
 import matplotlib
 import matplotlib.pyplot
-matplotlib.interactive(True)
-matplotlib.use("TkAgg") 
+# matplotlib.interactive(True)
+# matplotlib.use("TkAgg") 
 import numpy as np
-
-
 
 
 simulator = CSimulator(30, 600000)
@@ -41,7 +39,11 @@ for i in range(measurements):
     outs[0].append(boiler.GetBoilerWaterTemp())
 
 
-print(control.era(OKID(ins, outs, 50), 50, 50, 3, 1, 5))
+kalman = modred.modred.OKID(ins, outs, 50)
+a,b,c = modred.modred.era.compute_ERA_model(kalman, 50)
+asb = control.ss(a,b,c)
+print(asb)
+#, 50, 50, 3, 1, 5)
 
 
 
