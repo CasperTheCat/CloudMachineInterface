@@ -33,7 +33,10 @@ class ABoilerController(AController):
             #pinOut = (pinOut + 1.0) * 0.5
             pinOut = (pinOut) + 0.25
             pinOut = max(pinOut, 0)
-            self.Pawn.SetOutflowRate(pinOut ** 2 * .75)
+            self.Pawn.SetOutflowRate(pinOut ** 2.2 * .65)
+
+            temps = math.cos(self.accTime * 0.001)
+            self.Pawn.SetInflowWaterTemp(((temps * 0.5) + 0.5) * 30)
 
 
             pinIn = ((math.sin(self.accTime * 0.001) * math.sin(self.accTime * 0.0021)) + 1) * 0.1
@@ -41,7 +44,7 @@ class ABoilerController(AController):
             pinIn *= math.sin(self.accTime * 0.000314)
             pinIn *= math.sin((self.accTime + 1) * 0.001)
             pinIn = (pinIn + 1) * 0.5
-            self.Pawn.SetInflowRate(pinIn * 0.5)
+            self.Pawn.SetInflowRate(pinIn * 0.5 * 0.5)
 
             # # Waterlevels
             if self.Pawn.GetWaterLevel() < self.lowWaterAlert:
