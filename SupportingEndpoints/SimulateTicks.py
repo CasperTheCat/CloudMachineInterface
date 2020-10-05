@@ -8,13 +8,14 @@ import matplotlib.pyplot
 matplotlib.interactive(True)
 matplotlib.use("TkAgg") 
 import numpy
+import math
 
 simulator = CSimulator(30, 600000)
 #simulator = CSimulator(1, 200000)
 
 spTemp = 65
 
-boiler = simulator.SpawnObject(ABoiler, 10000, 30, 80, 30)
+boiler = simulator.SpawnObject(ABoiler, 20000, 30, 80, 30)
 boilerController = simulator.SpawnObject(ABoilerController, 5, 75, spTemp) # Heating to 95
 #boilerController = simulator.SpawnObject(ABoilerController, 50, 75, 95) # Heating to 95
 boilerController.Possess(boiler)
@@ -40,22 +41,22 @@ ax = matplotlib.pyplot.axes()
 dra, = ax.plot([],[])
 two, = ax.plot([],[])
 three, = ax.plot([],[])
-four, = ax.plot([],[])
+four, = ax.plot([],[], linestyle="--")
 
-iTime = 30
+iTime = 60
 
 color = (0.05,0.05,0.05)
 # ax.plot([-5,iTime+5], [60,60])
 # ax.plot([-5,iTime+5], [30,30])
-ax.axhline(spTemp, linestyle='--', color='red')
+#ax.axhline(spTemp, linestyle='--', color='red')
 ax.yaxis.grid(True, color='white')
 
 
 ax.set_facecolor(color)
 fig.set_facecolor(color)
 
-ax.set_xlabel("Time (Seconds)", color='white')
-ax.set_ylabel("Heat (°C) / Boiler Power Level (%)", color='white')
+ax.set_xlabel("Window Time (Seconds)", color='white')
+ax.set_ylabel("Temperature (°C) / Power (%) / Water Level (L)", color='white')
 #ax.set_ylim(top=maxY, bottom=-1)
 ax.set_ylim(top=maxY, bottom=-1)
 #ax.set_xlim(left=-5, right=iTime+5)
@@ -81,10 +82,10 @@ try:
 
         dataP = numpy.concatenate([dataP, [boiler.GetBoilerWaterTemp()]])
         dataT = numpy.concatenate([dataT, [boiler.boilerPercent * 100]])
-        dataX = numpy.concatenate([dataX, [boiler.waterOutRatePerSecond * 100]])
+        dataX = numpy.concatenate([dataX, [boilerController.temperatureSetPoint]])
         dataS = numpy.concatenate([dataS, [boiler.waterVolCurrent]])
 
-        #removalCutter = numpy.argmax(dataP > (dataP[-1] - iTime))
+        removalCutter = numpy.argmax(dataP > (dataP[-1] - iTime))
 
         #dra.set_ydata(dataP[removalCutter:])
         at = 0#max((len(dataP) - 1) - iTime, 0)
@@ -109,10 +110,18 @@ try:
         
         simulator.SimulateNTicks(1000, 1/1000)
 
+        #mod = math.cos(i * 0.1) * 10
+        mod = math.sin(i * 0.01) ** 640 * 30
+        boilerController.SetTarget(spTemp - math.floor(mod))
+
+        #print("Update Setpoint {} -> {}°C".format(spTemp - mod, spTemp - math.floor(mod)))
+        print("Update Boiler Perf {}w".format(boiler.boilerPerformance))
+        print("Update Boiler Hist {}s".format(boiler.CurrentControlTime))
+
         #simulator.SetTimeDilation(20 * (i + 1))
         #boiler.SetBoilerPower((i + 1) * 10)
         # print("[TIME {:.02f}s][{:.02f}h] Average Simulation Rate (Dilated): {:.04f} hz".format((i + 1) * simulator.timeDilation, ((i + 1) * simulator.timeDilation) / 3600, simulator.ProcessAvgFramerate()))
-        print("[TIME {:.02f}s] Boiler Water Level is {:.03f}L @ {:.02f}°C".format((i + 1) * simulator.timeDilation, boiler.GetWaterLevel(), boiler.GetBoilerWaterTemp()))
+        #print("[TIME {:.02f}s] Boiler Water Level is {:.03f}L @ {:.02f}°C".format((i + 1) * simulator.timeDilation, boiler.GetWaterLevel(), boiler.GetBoilerWaterTemp()))
         print("[TIME {:.02f}s] Power Used: {:.02f} kWh".format((i + 1) * simulator.timeDilation, boiler.GetPowerUse() / 3600000 ))
         # print("[TIME {:.02f}s] Power Perc: {:.02f}%".format((i + 1) * simulator.timeDilation, boiler.boilerPercent * 100))
         # print("[TIME {:.02f}s] PID: {:.02f}i".format((i + 1) * simulator.timeDilation, boilerController.PID.iVal))

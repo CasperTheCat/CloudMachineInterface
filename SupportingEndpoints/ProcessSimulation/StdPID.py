@@ -12,6 +12,8 @@ class StdPIDController(object):
 
         self.dbgLastReturn = 0
         
+    def UpdateSetpoint(self, value):
+        self.setPoint = value
 
     def Update(self, value, DeltaTime):
         # Get Prop

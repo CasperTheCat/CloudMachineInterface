@@ -21,13 +21,23 @@ class ABoiler(AActor):
         self.waterVolCurrent = initWaterVol
         self.boilerPercent = 0
         self.boilerCapacity = initBoilerPowerWatts
+        self.boilerPerformance = self.boilerCapacity
 
         self.SetBoilerPercent = 0
+        self.BoilerControlTime = 300
+        self.CurrentControlTime = 300
 
         self.powerUseWatts = 0
 
         super().__init__()
     
+    def SetBoilerPerformancePercentage(self, value):
+        sanitisedPercent = max(min(value, 1), 0)
+        self.boilerPerformance = self.boilerCapacity * sanitisedPercent
+
+    def SetBoilerControlTimeOffset(self, value):
+        self.CurrentControlTime = self.BoilerControlTime + value
+
     def LerpInterp(self, To, From, Step, Time):
         return From + (To - From) * (Step / Time)
 
@@ -61,7 +71,7 @@ class ABoiler(AActor):
         return self.boilerPercent
 
     def Tick(self, DeltaTime: float):
-        self.boilerPercent = self.LerpInterp(self.SetBoilerPercent, self.boilerPercent, DeltaTime, 300)
+        self.boilerPercent = self.LerpInterp(self.SetBoilerPercent, self.boilerPercent, DeltaTime, self.CurrentControlTime)
 
         # In Handle Water!
         lWaterIncoming = self.waterInRatePerSecond * DeltaTime
@@ -73,7 +83,7 @@ class ABoiler(AActor):
 
         if (self.waterVolCurrent > 0):
             s1 = (self.waterTemperature * self.waterVolCurrent + lWaterIncoming * self.waterInTemperature) / (self.waterVolCurrent + lWaterIncoming)
-            s2 = (self.boilerPercent * self.boilerCapacity * DeltaTime) / (4200 * self.waterVolCurrent)
+            s2 = (self.boilerPercent * self.boilerPerformance * DeltaTime) / (4200 * self.waterVolCurrent)
             newTemp = (s1 + s2) - self.dissipationRateCPerSecond * DeltaTime
             self.waterTemperature = newTemp
 
@@ -81,14 +91,14 @@ class ABoiler(AActor):
         self.waterVolCurrent += lWaterIncoming
         self.waterVolCurrent -= lWaterLeaving * 0.5
 
-        self.powerUseWatts += self.boilerPercent * self.boilerCapacity * DeltaTime
+        self.powerUseWatts += self.boilerPercent * self.boilerPerformance * DeltaTime
 
         #s2 = (4200 * lWaterIncoming * self.GetInflowWaterTemp()) / (4200 * self.waterVolCurrent)
         # # Heat
         # # We lost as much energy as the energy leaving was carrying
         # outEnergy = 4.2 * lWaterLeaving * self.GetBoilerWaterTemp()
         # inEnergy = 4.2 * lWaterIncoming * self.GetInflowWaterTemp()
-        # boilerEnergy = self.boilerPercent * self.boilerCapacity
+        # boilerEnergy = self.boilerPercent * self.boilerPerformance
 
         # print((inEnergy - outEnergy) + boilerEnergy)
 
