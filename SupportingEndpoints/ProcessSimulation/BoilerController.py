@@ -41,10 +41,10 @@ class ABoilerController(AController):
             self.accTime += DeltaTime
 
             if self.bRunDisturb:
-                boilerDegrader = max(0, self.accTime - 20000) / 80000 # After 100000, we reach peak bad boilerism
+                boilerDegrader = max(0, self.accTime - 100000) / 100000 # After 200000, we reach peak bad boilerism
                 self.Pawn.SetBoilerPerformancePercentage(1 - boilerDegrader * 0.5)
 
-                boilerStickyControls = (max(0, self.accTime - 2000) / 40000)
+                boilerStickyControls = (max(0, self.accTime - 50000) / 100000)
                 self.Pawn.SetBoilerControlTimeOffset(600 * boilerStickyControls)
 
             if self.bRunDisturb:

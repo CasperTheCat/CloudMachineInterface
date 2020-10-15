@@ -11,118 +11,63 @@ matplotlib.interactive(True)
 matplotlib.use("TkAgg") 
 import numpy
 import math
+import Utils
+
+dilation = 2
+seqLength = 60 * 24
+
+# disabledisturb = True
+
+# #ins, outs, tests, rawins = MakeData(30000,55,dilation, seqLength, 35, disabledisturb)
+# #yins, youts, ytest, rawyins = MakeData(15000,45,dilation, seqLength, 21, disabledisturb)
+
+# ins, outs, tests, rawins = MakeData(10000,55,dilation, seqLength, 35, disabledisturb)
+# dins, douts, dtests, drawins = MakeData(10000,55,dilation / 20, seqLength, 35, disabledisturb)
+# yins, youts, ytest, rawyins = MakeData(5000,85,dilation, seqLength, 21, disabledisturb and False)
 
 
-#https://stackoverflow.com/questions/15722324/sliding-window-of-m-by-n-shape-numpy-ndarray
-def window_stack(a, stepsize=1, width=3, nummax=None):
-    if not nummax:
-        indexer = numpy.arange(width)[None, :] + stepsize*numpy.arange(a.shape[0] - (width))[:, None]
-    else:
-        indexer = numpy.arange(width)[None, :] + stepsize*numpy.arange(nummax)[:, None]
+# tests = numpy.concatenate((tests, dtests))
+# rawins = numpy.concatenate((rawins, drawins))
 
-    return a[indexer]
-    return numpy.hstack( a[i:1+i-width or None:stepsize] for i in range(0,width) )
+# print(ins.shape)
+# print(rawins.shape)
 
-def MakeData(x,y, td, width, modRange, disable):
-    simulator = CSimulator(td, 600000)
-    #simulator = CSimulator(1, 200000)
+step = 60
 
-    spTemp = y
+# 60k seconds, measuring every minute
+disturbs, states, targetDisturbs, targetStates = Utils.MakeData(120000, 55, dilation, seqLength, 10, False, step=step, stack=False)
+disturbs2, states2, targetDisturbs2, targetStates2 = Utils.MakeData(120000, 45, dilation, seqLength, 10, False, step=step, stack=False)
+disturbs3, states3, targetDisturbs3, targetStates3 = Utils.MakeData(120000, 35, dilation, seqLength, 4, False, step=step, stack=False)
 
-    boiler = simulator.SpawnObject(ABoiler, 10000, 30, 80, 30)
-    boilerController = simulator.SpawnObject(ABoilerController, 5, 75, spTemp) # Heating to 95
-    #boilerController = simulator.SpawnObject(ABoilerController, 50, 75, 95) # Heating to 95
-    boilerController.Possess(boiler)
+disturbs = numpy.concatenate((disturbs, disturbs2, disturbs3))
+states = numpy.concatenate((states, states2,states3))
+# targetDisturbs = numpy.concatenate((targetDisturbs, targetDisturbs2, targetDisturbs3))
+# targetStates = numpy.concatenate((targetStates, targetStates2, targetStates3))
 
-    boiler.SetInflowWaterTemp(24)
-    boiler.SetInflowRate(0.0)
-    boiler.SetOutflowRate(0.0001)
+val_disturbs, val_states, val_targetDisturbs, val_targetStates = Utils.MakeData(60000, 75, dilation, seqLength, 2, False, step=60, stack=False)
 
-    if(disable):
-        boilerController.SetDisableDisturbance()
+print(disturbs.shape)
 
-    measurements = x
-    ins = [[],[],[],[],[],[]]
-    outs = [[]]
-    for i in range(measurements):
-        if i % 100 == 0:
-            print("Time {}".format(i * 10))
-        
-        pastTickTemp = boiler.GetBoilerWaterTemp()
-        simulator.SimulateNTicks(25, 1/25)
+inFeed = numpy.concatenate((disturbs, states), axis=1)
 
-        if(not disable):
-            mod = math.sin(i * 0.005) * modRange #** 640 * 30
-            boilerController.SetTarget(spTemp - math.floor(mod))
-
-        
-        #ins[3].append(boiler.waterVolCurrent)
-        ins[0].append(boiler.waterInRatePerSecond)
-        ins[1].append(boiler.GetInflowWaterTemp())
-        ins[2].append(boiler.waterOutRatePerSecond)
-        ins[3].append(boilerController.temperatureSetPoint)
-        ins[4].append(boiler.waterVolCurrent)
-        #ins[5].append(boiler.boilerPercent)
-        ins[5].append(boiler.GetBoilerWaterTemp())
-        #ins[4].append((i * 10) * simulator.timeDilation)
-
-        #ins[3].append(boiler.boilerPercent)
+print(inFeed.shape)
+#inVal = numpy.concatenate((val_disturbs, val_states), axis=2)
 
 
-        #ins[3].append(pastTickTemp)
-        #ins[3].append(boiler.boilerPercent)
-        #ins[4].append(boiler.waterVolCurrent)
 
-        outs[0].append(boiler.GetBoilerWaterTemp())
+#print(ins.shape)
 
-    nins = numpy.array([numpy.array(xi) for xi in ins]).transpose()
-    nouts = numpy.array([numpy.array(xi) for xi in outs]).transpose()
-
-    rnins = nins#window_stack(nins, stepsize=1, width=width)
-    #nouts = window_stack(nouts, stepsize=1, width=width)
-    nouts = nouts#nouts[width:]
-
-    #print(nstack.shape)
-    print(rnins.shape)
-    print(nouts.shape)
-
-    ninstest = numpy.expand_dims(rnins[0], 0)
-    #nouts = numpy.expand_dims(nouts, 1)
-
-    return rnins, nouts, ninstest, nins[width:]
-
-
-dilation = 25
-seqLength = 256
-
-disabledisturb = True
-
-#ins, outs, tests, rawins = MakeData(30000,55,dilation, seqLength, 35, disabledisturb)
-#yins, youts, ytest, rawyins = MakeData(15000,45,dilation, seqLength, 21, disabledisturb)
-
-ins, outs, tests, rawins = MakeData(6000,55,dilation, seqLength, 35, disabledisturb)
-dins, douts, dtests, drawins = MakeData(6000,40,dilation / 20, seqLength, 35, disabledisturb)
-yins, youts, ytest, rawyins = MakeData(1500,85,dilation, seqLength, 21, disabledisturb and False)
-
-ins = numpy.concatenate((ins, dins))
-outs = outs + douts
-tests = tests + dtests
-rawins = rawins + drawins
-
-
-print(ins.shape)
-
-l1 = ins[:-1].transpose()
-l2 = ins[1:].transpose()
+l1 = disturbs[:-1].transpose()
+l2 = disturbs[1:].transpose()
 
 print(l1.shape, l2.shape)
 
 
-kalman = modred.OKID(l1, l2, ins.shape[1] // 2)
+kalman = modred.OKID(l1, l2, disturbs.shape[0] // 8)
 era = modred.ERA()
-#a,b,c = era.compute_model(kalman, 10, 10)
-# b = b * (1/100)
-a,b,c = modred.era.compute_ERA_model(kalman, 5000)
+a,b,c = era.compute_model(kalman, 10, 10)
+b = b * (1/(step * dilation))
+#a,b,c = modred.era.compute_ERA_model(kalman, 500)
 #b = b * (1/25)
 
 asb = control.ss(a,b,c, numpy.zeros((c.shape[0], b.shape[1])))
@@ -133,7 +78,7 @@ print(poles)
 
 t, yo, xo = control.forced_response(asb, numpy.arange(0, len(l1[1])), U=l1)
 #print(t)
-yo = yo.transpose()[5]
+yo = yo[2].transpose()
 print(yo.shape)
 
 
@@ -253,6 +198,8 @@ ax.set_xlim(left=-5, right=len(dataP) * dilation +5)
 #ax = pd.plot()
 fig.canvas.draw()
 fig.canvas.flush_events()
+
+fig.savefig("ERA_{}.png".format(Utils.TimeNow()))
 
 #simulator.SimulateNTicks(1000, 1/1000)
 

@@ -17,107 +17,38 @@ matplotlib.use("TkAgg")
 import numpy
 import math
 
-#https://stackoverflow.com/questions/15722324/sliding-window-of-m-by-n-shape-numpy-ndarray
-def window_stack(a, stepsize=1, width=3, nummax=None):
-    if not nummax:
-        indexer = np.arange(width)[None, :] + stepsize*np.arange(a.shape[0] - (width))[:, None]
-    else:
-        indexer = np.arange(width)[None, :] + stepsize*np.arange(nummax)[:, None]
+dilation = 2
+seqLength = 60 * 24
 
-    return a[indexer]
-    return numpy.hstack( a[i:1+i-width or None:stepsize] for i in range(0,width) )
+# disabledisturb = True
 
-def MakeData(x,y, td, width, modRange, disable):
-    simulator = CSimulator(td, 600000)
-    #simulator = CSimulator(1, 200000)
+# #ins, outs, tests, rawins = MakeData(30000,55,dilation, seqLength, 35, disabledisturb)
+# #yins, youts, ytest, rawyins = MakeData(15000,45,dilation, seqLength, 21, disabledisturb)
 
-    spTemp = y
-
-    boiler = simulator.SpawnObject(ABoiler, 10000, 30, 80, 30)
-    boilerController = simulator.SpawnObject(ABoilerController, 5, 75, spTemp) # Heating to 95
-    #boilerController = simulator.SpawnObject(ABoilerController, 50, 75, 95) # Heating to 95
-    boilerController.Possess(boiler)
-
-    boiler.SetInflowWaterTemp(24)
-    boiler.SetInflowRate(0.0)
-    boiler.SetOutflowRate(0.0001)
-
-    if(disable):
-        boilerController.SetDisableDisturbance()
-
-    measurements = x
-    ins = [[],[],[],[],[],[]]
-    outs = [[]]
-    for i in range(measurements):
-        if i % 100 == 0:
-            print("Time {}".format(i * 10))
-        
-        pastTickTemp = boiler.GetBoilerWaterTemp()
-        simulator.SimulateNTicks(25, 1/25)
-
-        if(not disable):
-            mod = math.sin(i * 0.005) * modRange #** 640 * 30
-            boilerController.SetTarget(spTemp - math.floor(mod))
-
-        
-        #ins[3].append(boiler.waterVolCurrent)
-        ins[0].append(boiler.waterInRatePerSecond)
-        ins[1].append(boiler.GetInflowWaterTemp())
-        ins[2].append(boiler.waterOutRatePerSecond)
-        ins[3].append(boilerController.temperatureSetPoint)
-        ins[4].append(boiler.waterVolCurrent)
-        #ins[5].append(boiler.boilerPercent)
-        ins[5].append(boiler.GetBoilerWaterTemp())
-        #ins[4].append((i * 10) * simulator.timeDilation)
-
-        #ins[3].append(boiler.boilerPercent)
+# ins, outs, tests, rawins = MakeData(10000,55,dilation, seqLength, 35, disabledisturb)
+# dins, douts, dtests, drawins = MakeData(10000,55,dilation / 20, seqLength, 35, disabledisturb)
+# yins, youts, ytest, rawyins = MakeData(5000,85,dilation, seqLength, 21, disabledisturb and False)
 
 
-        #ins[3].append(pastTickTemp)
-        #ins[3].append(boiler.boilerPercent)
-        #ins[4].append(boiler.waterVolCurrent)
+# tests = numpy.concatenate((tests, dtests))
+# rawins = numpy.concatenate((rawins, drawins))
 
-        outs[0].append(boiler.GetBoilerWaterTemp())
+# print(ins.shape)
+# print(rawins.shape)
 
-    nins = numpy.array([numpy.array(xi) for xi in ins]).transpose()
-    nouts = numpy.array([numpy.array(xi) for xi in outs]).transpose()
-
-    rnins = window_stack(nins, stepsize=1, width=width)
-    #nouts = window_stack(nouts, stepsize=1, width=width)
-    nouts = nouts[width:]
-
-    #print(nstack.shape)
-    print(rnins.shape)
-
-    ninstest = numpy.expand_dims(rnins[0], 0)
-    nouts = numpy.expand_dims(nouts, 1)
-
-    return rnins, nouts, ninstest, nins[width:]
-
-
-dilation = 25
-seqLength = 256
-
-disabledisturb = True
-
-#ins, outs, tests, rawins = MakeData(30000,55,dilation, seqLength, 35, disabledisturb)
-#yins, youts, ytest, rawyins = MakeData(15000,45,dilation, seqLength, 21, disabledisturb)
-
-ins, outs, tests, rawins = MakeData(10000,55,dilation, seqLength, 35, disabledisturb)
-dins, douts, dtests, drawins = MakeData(10000,55,dilation / 20, seqLength, 35, disabledisturb)
-yins, youts, ytest, rawyins = MakeData(5000,85,dilation, seqLength, 21, disabledisturb and False)
-
-ins = numpy.concatenate((ins, dins))
-outs = numpy.concatenate((outs, douts))
-tests = numpy.concatenate((tests, dtests))
-rawins = numpy.concatenate((rawins, drawins))
-
-print(ins.shape)
-print(rawins.shape)
-
+step = 60
 
 # 60k seconds, measuring every minute
-disturbs, states = Utils.MakeData(60000, 55, dilation, seqLength, 10, False, step=60)
+disturbs, states, targetDisturbs, targetStates = Utils.MakeData(120000, 55, dilation, seqLength, 10, False, step=step)
+disturbs2, states2, targetDisturbs2, targetStates2 = Utils.MakeData(120000, 45, dilation, seqLength, 10, False, step=step)
+disturbs3, states3, targetDisturbs3, targetStates3 = Utils.MakeData(120000, 35, dilation, seqLength, 4, False, step=step)
+
+disturbs = numpy.concatenate((disturbs, disturbs2, disturbs3))
+states = numpy.concatenate((states, states2,states3))
+targetDisturbs = numpy.concatenate((targetDisturbs, targetDisturbs2, targetDisturbs3))
+targetStates = numpy.concatenate((targetStates, targetStates2, targetStates3))
+
+val_disturbs, val_states, val_targetDisturbs, val_targetStates = Utils.MakeData(60000, 75, dilation, seqLength, 2, False, step=60)
 
 
 #ins, outs, tests, rawins = MakeData(3000,55,dilation, seqLength, 35, disturb)
@@ -127,7 +58,8 @@ disturbs, states = Utils.MakeData(60000, 55, dilation, seqLength, 10, False, ste
 forecastmodel = keras.Sequential(
     [
         #layers.Embedding(input_shape=(100, 3), output_dim=128),
-        layers.Input(shape=(seqLength, ins.shape[2])),
+        layers.Input(shape=(seqLength, disturbs.shape[2])),
+        layers.LSTM(256, return_sequences=True),
         layers.LSTM(256, return_sequences=True),
         #layers.GRU(64, return_sequences=True),
         #layers.LSTM(128, return_sequences=True),
@@ -135,8 +67,8 @@ forecastmodel = keras.Sequential(
         #layers.LSTM(64, return_sequences=True),
         #layers.LSTM(64, return_sequences=True),
         
-        #layers.Dense(64, activation='relu'),
-        layers.Dense(ins.shape[2])
+        layers.Dense(64, activation='relu'),
+        layers.Dense(disturbs.shape[2])
     ]
 )
 # model.add(layers.Embedding(input_dim=1000, output_dim=64))
@@ -147,15 +79,17 @@ forecastmodel = keras.Sequential(
 predmodel = keras.Sequential(
     [
         #layers.Embedding(input_shape=(100, 3), output_dim=128),
-        layers.Input(shape=(seqLength, ins.shape[2])),
-        layers.LSTM(256, return_sequences=True),
-        #layers.GRU(64, return_sequences=False),
+        layers.Input(shape=(seqLength, states.shape[2] + disturbs.shape[2])),
+        layers.LSTM(1024, return_sequences=True),
+        layers.Dropout(0.2),
+        layers.LSTM(1024, return_sequences=True),
         #layers.LSTM(256, return_sequences=False),
-        #layers.LSTM(64, return_sequences=True),
-        #layers.LSTM(64, return_sequences=True),
-        #layers.LSTM(128, return_sequences=True),
-        #layers.Dense(64, activation='relu'),
-        layers.Dense(1)
+        layers.LSTM(1024, return_sequences=False),
+        
+
+
+        layers.Dense(256, activation='relu'),
+        layers.Dense(states.shape[2])
     ]
 )
 
@@ -169,17 +103,36 @@ forecastmodel.compile(
 predmodel.compile(
     #loss=keras.losses.SparseCategoricalCrossentropy(from_logits=True),
     loss="mse",
-    optimizer=keras.optimizers.Adam(learning_rate=0.01),
+    optimizer=keras.optimizers.Adam(learning_rate=0.001),
     #metrics=["accuracy"],
 )
 
 
+predmodel.summary()
 forecastmodel.summary()
 
 epochlies = 1
 
-predmodel.fit(ins, outs, validation_data=(yins, youts), batch_size=16, epochs=epochlies)
-forecastmodel.fit(ins[:-1], rawins[1:], validation_data=(yins[:-1], rawyins[1:]), batch_size=16, epochs=epochlies)
+#predmodel.fit(ins, outs, validation_data=(yins, youts), batch_size=16, epochs=epochlies)
+
+print(disturbs[1][-1])
+print(targetDisturbs[0])
+print(len(disturbs), len(targetDisturbs))
+
+assert(disturbs[1][-1][0] == targetDisturbs[0][0])
+assert(disturbs[1][-1][1] == targetDisturbs[0][1])
+assert(disturbs[1][-1][2] == targetDisturbs[0][2])
+assert(len(disturbs) == len(targetDisturbs))
+
+inFeed = numpy.concatenate((disturbs, states), axis=2)
+inVal = numpy.concatenate((val_disturbs, val_states), axis=2)
+
+print(inVal.shape)
+print(inFeed.shape)
+print(states.shape[2] + disturbs.shape[2])
+
+forecastmodel.fit(disturbs, targetDisturbs, validation_data=(val_disturbs, val_targetDisturbs), batch_size=16, epochs=epochlies)
+predmodel.fit(inFeed, targetStates, validation_data=(inVal, val_targetStates), batch_size=16, epochs=epochlies)
 
 
 
@@ -189,31 +142,59 @@ forecastmodel.fit(ins[:-1], rawins[1:], validation_data=(yins[:-1], rawyins[1:])
 # ins[3].append(boilerController.temperatureSetPoint)
 # ins[4].append((i * 10) * simulator.timeDilation)
 
-#preds = model.predict(ytest)
+#preds = model.predict(ytest)  
 #preds = model(ytest)
 
 yo = []
 
-tempsPred = []
+distPreds = []
+statePreds = []
 
-inputarr = yins[0]
+inputarr = disturbs[0]
+internalState = inFeed[0]
+print(targetDisturbs.shape)
 
-for i in range(yins.shape[0] // 16):
-    inputarr = numpy.expand_dims(yins[i], 0)
 
-    for j in range(512):
+
+
+forecasterLength = 256
+
+limit = disturbs.shape[0] // forecasterLength
+
+for i in range(limit):
+    actual = i * forecasterLength
+    inputarr = disturbs[actual]#numpy.expand_dims(disturbs[actual], 0)
+    internalState = inFeed[actual]#numpy.expand_dims(states[i], 0)
+
+    print("Working: {}/{} (N. {})".format(i, limit, actual))
+
+    for j in range(forecasterLength):
         ytest = numpy.expand_dims(inputarr, 0)
-        preds = predmodel.predict(ytest)
-    
-        predtime = tf.squeeze(preds, 0)[0].numpy()
+        ystate= numpy.expand_dims(internalState, 0)        
 
-        yo.append(predtime)
+
+
+
+
+        #predtime = tf.squeeze(preds, 0)[0].numpy()
+        #yo.append(predtime)
         #print(tf.squeeze(preds, 0)[-1,0].numpy())
 
         ## Next Timestep
         forecast = forecastmodel.predict(ytest)
         forebar = tf.squeeze(forecast, 0).numpy()
-        tempsPred.append(forebar[5])
+        distPreds.append(forebar)
+
+        # don't predict the state here
+        preds = predmodel.predict(ystate)
+        forepred = tf.squeeze(preds, 0).numpy()
+        statePreds.append(forepred)
+
+        #print(preds)
+
+        preds = [numpy.concatenate((forecast[0], preds[0]))]
+
+        #print(preds)
 
         #lElement = inputarr[-1]
         # print()
@@ -221,13 +202,14 @@ for i in range(yins.shape[0] // 16):
         # print(rawyins[i+1])
         #sys.exit()
         inputarr = numpy.concatenate((inputarr[1:], forecast))
+        internalState = numpy.concatenate((internalState[1:], preds))
         #print(inputarr[1:])
         #inputarr = numpy.concatenate(inputarr[1:], [1, lElement[1], lElement[2], lElement[3]])
         #inputarr = numpy.concatenate((inputarr[1:], [numpy.array([lElement[0], lElement[1], 65, i * dilation])]))
 
 
 
-print(preds.shape)
+#print(preds.shape)
 
 
 
@@ -275,13 +257,44 @@ dataT = []
 dataS = []
 dataX = []
 
+        # user_disturbances[0].append(boiler.waterInRatePerSecond)
+        # user_disturbances[1].append(boiler.GetInflowWaterTemp())
+        # user_disturbances[2].append(boiler.waterOutRatePerSecond)
+
+        # stateInformation[3].append(boilerController.temperatureSetPoint)
+        # stateInformation[4].append(boiler.waterVolCurrent)
+        # stateInformation[5].append(boiler.GetBoilerWaterTemp())
+
 #input("Press Any Key")
+
 
 ax.collections.clear()
 #ax.fill_between(dataHolderRt[:len(comp)], comp - (2 * err), comp + (2 * err), facecolor='blue', alpha=0.25)
-dataP = yo#numpy.concatenate([dataP, [yo]])
-dataT = youts
-dataP = tempsPred
+# dataP = yo#numpy.concatenate([dataP, [yo]])
+# dataT = youts
+# dataP = tempsPred
+
+
+# dataP = numpy.array(distPreds).transpose()[1]
+# dataT = targetDisturbs.transpose()[1]
+# print(dataT.flatten().squeeze().shape)
+# print(len(dataP))
+# dataT = list(dataT.flatten())
+# dataP = list(dataP.flatten())
+
+dataP = numpy.array(statePreds).transpose()[2]
+dataT = targetStates.transpose()[2]
+print(dataT.flatten().squeeze().shape)
+print(len(dataP))
+dataT = list(dataT.flatten())
+dataP = list(dataP.flatten())
+
+
+
+
+#dataS = distPreds[2]
+
+
 
 
 # dataT = numpy.concatenate([dataT, [boiler.boilerPercent * 100]])
@@ -292,14 +305,26 @@ dataP = tempsPred
 
 #dra.set_ydata(dataP[removalCutter:])
 at = 0#max((len(dataP) - 1) - iTime, 0)
-dataP = dataP[at:]
-dataT = dataT[at:len(dataP)]
-dataS = dataS[at:]
-dataX = dataX[at:]
+at = min(len(dataP), len(dataT))
+# dataP = dataP[at:]
+# dataT = dataT[at:]
+# dataS = dataS[at:]
+# dataX = dataX[at:]
+dataP = dataP[:at]
+dataT = dataT[:at]
+# dataS = dataS[:at]
+# dataX = dataX[:at]
+
+print(len(dataP))
+print(len(dataT))
+
 dra.set_xdata(numpy.arange(0, len(dataP)) * dilation)
 dra.set_ydata(dataP)
-two.set_xdata(numpy.arange(0, len(dataP)) * dilation)
+two.set_xdata(numpy.arange(0, len(dataT)) * dilation)
 two.set_ydata(dataT)
+
+
+
 # three.set_xdata(numpy.arange(0, len(dataP)) * simulator.timeDilation)
 # three.set_ydata(dataS)
 # four.set_xdata(numpy.arange(0, len(dataP)) * simulator.timeDilation)
@@ -310,6 +335,8 @@ ax.set_xlim(left=-5, right=len(dataP) * dilation +5)
 #ax = pd.plot()
 fig.canvas.draw()
 fig.canvas.flush_events()
+
+fig.savefig("ML_{}.png".format(Utils.TimeNow()))
 
 #simulator.SimulateNTicks(1000, 1/1000)
 
