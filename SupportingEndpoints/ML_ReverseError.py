@@ -18,7 +18,7 @@ import numpy
 import math
 
 dilation = 2
-seqLength = 60
+seqLength = 60 * 4
 #seqLength = 60 * 24
 
 disabledisturb = True
@@ -37,7 +37,7 @@ disabledisturb = True
 # print(ins.shape)
 # print(rawins.shape)
 
-step = 60
+step = 15
 
 # 60k seconds, measuring every minute
 disturbs, states, targetDisturbs, targetStates = Utils.MakeData(60000, 55, dilation, seqLength, 10, disabledisturb and False, step=step)
@@ -136,91 +136,57 @@ print(states.shape[2] + disturbs.shape[2])
 print(inFeed[0][-1])
 print(targetStates[0])
 
-forecastmodel.fit(disturbs, targetDisturbs, validation_data=(val_disturbs, val_targetDisturbs), batch_size=16, epochs=epochlies)
+#forecastmodel.fit(disturbs, targetDisturbs, validation_data=(val_disturbs, val_targetDisturbs), batch_size=16, epochs=epochlies)
 predmodel.fit(inFeed, targetStates, validation_data=(inVal, val_targetStates), batch_size=16, epochs=epochlies)
 
 
 
 
 
-# ins[0].append(boiler.waterInRatePerSecond)
-# ins[1].append(boiler.GetInflowWaterTemp())
-# ins[2].append(boiler.waterOutRatePerSecond)
-# ins[3].append(boilerController.temperatureSetPoint)
-# ins[4].append((i * 10) * simulator.timeDilation)
+##### ##### ########## ##### #####
+## Build History
+##
 
-#preds = model.predict(ytest)  
-#preds = model(ytest)
+# Build Forward
+# There's no benefit to building backwards since each step is discrete
 
-yo = []
+# How far back?
+backstep = seqLength
 
-distPreds = []
-statePreds = []
+pairwiseErrors = []
 
-inputarr = disturbs[0]
-internalState = inFeed[0]
-print(targetDisturbs.shape)
+for i in range(backstep):
+    itu = numpy.expand_dims(inFeed[i], 0) 
+    preds = predmodel.predict(itu)
+    
+    forecast = tf.squeeze(preds, 0).numpy()
+    tStat = targetStates[i]
 
+    pairwiseErrors.append(forecast - tStat)
 
+pairwiseErrors = numpy.array(pairwiseErrors)
 
+# Abs Errors
+absPairwise = numpy.absolute(pairwiseErrors)
 
-forecasterLength = 60
-
-limit = disturbs.shape[0] // forecasterLength
-
-for i in range(limit):
-    actual = i * forecasterLength
-    inputarr = disturbs[actual]#numpy.expand_dims(disturbs[actual], 0)
-    internalState = inFeed[actual]#numpy.expand_dims(states[i], 0)
-
-    print("Working: {}/{} (N. {}, t:{})".format(i, limit, actual, actual * step * dilation))
-
-    for j in range(forecasterLength):
-        ytest = numpy.expand_dims(inputarr, 0)
-        ystate= numpy.expand_dims(internalState, 0)        
+pairwiseErrors = absPairwise
 
 
+# Sum
+print(pairwiseErrors[0])
+pairwiseErrors = numpy.sum(pairwiseErrors, axis=1)
+print(pairwiseErrors[0])
 
-
-
-        #predtime = tf.squeeze(preds, 0)[0].numpy()
-        #yo.append(predtime)
-        #print(tf.squeeze(preds, 0)[-1,0].numpy())
-
-        ## Next Timestep
-        forecast = forecastmodel.predict(ytest)
-        forebar = tf.squeeze(forecast, 0).numpy()
-        distPreds.append(forebar)
-
-        # don't predict the state here
-        preds = predmodel.predict(ystate)
-        forepred = tf.squeeze(preds, 0).numpy()
-        statePreds.append(forepred)
-
-        #print(preds)
-
-        preds = [numpy.concatenate((forecast[0], preds[0]))]
-
-        #print(preds)
-
-        #lElement = inputarr[-1]
-        # print()
-        # print(forebar)
-        # print(rawyins[i+1])
-        #sys.exit()
-        inputarr = numpy.concatenate((inputarr[1:], forecast))
-        internalState = numpy.concatenate((internalState[1:], preds))
-        #print(inputarr[1:])
-        #inputarr = numpy.concatenate(inputarr[1:], [1, lElement[1], lElement[2], lElement[3]])
-        #inputarr = numpy.concatenate((inputarr[1:], [numpy.array([lElement[0], lElement[1], 65, i * dilation])]))
+pairwiseErrors = numpy.flip(pairwiseErrors)
+print(pairwiseErrors[0])
+pairwiseErrors = numpy.cumsum(pairwiseErrors)
+pairwiseErrors = numpy.flip(pairwiseErrors)
 
 
 
-#print(preds.shape)
 
 
-
-maxY = 105
+maxY = 240
 maxTDPI = 240
 resolution = numpy.array((1920, 1080))
 TargetDPI = maxTDPI
@@ -289,12 +255,17 @@ ax.collections.clear()
 # dataT = list(dataT.flatten())
 # dataP = list(dataP.flatten())
 
-dataP = numpy.array(statePreds).transpose()[2]
-dataT = targetStates.transpose()[2]
+dataP = targetStates.transpose()[0]
+dataT = targetStates.transpose()[1]
+dataS = targetStates.transpose()[2]
+dataX = pairwiseErrors.transpose()
+print(dataP.flatten().squeeze().shape)
 print(dataT.flatten().squeeze().shape)
-print(len(dataP))
+#print(len(dataP))
 dataT = list(dataT.flatten())
 dataP = list(dataP.flatten())
+dataS = list(dataS.flatten())
+dataX = list(dataX.flatten())
 
 
 
@@ -312,23 +283,26 @@ dataP = list(dataP.flatten())
 
 #dra.set_ydata(dataP[removalCutter:])
 at = 0#max((len(dataP) - 1) - iTime, 0)
-at = min(len(dataP), len(dataT))
+at = min(len(dataP), len(dataX))
 # dataP = dataP[at:]
 # dataT = dataT[at:]
 # dataS = dataS[at:]
 # dataX = dataX[at:]
 dataP = dataP[:at]
 dataT = dataT[:at]
-# dataS = dataS[:at]
-# dataX = dataX[:at]
+dataS = dataS[:at]
+dataX = dataX[:at]
 
 print(len(dataP))
 print(len(dataT))
-
 dra.set_xdata(numpy.arange(0, len(dataP)) * dilation)
 dra.set_ydata(dataP)
 two.set_xdata(numpy.arange(0, len(dataT)) * dilation)
 two.set_ydata(dataT)
+three.set_xdata(numpy.arange(0, len(dataS)) * dilation)
+three.set_ydata(dataS)
+four.set_xdata(numpy.arange(0, len(dataX)) * dilation)
+four.set_ydata(dataX)
 
 
 
@@ -343,7 +317,7 @@ ax.set_xlim(left=-5, right=len(dataP) * dilation +5)
 fig.canvas.draw()
 fig.canvas.flush_events()
 
-fig.savefig("ML_4.png".format(Utils.TimeNow()))
+fig.savefig("ML_6.png".format(Utils.TimeNow()))
 
 #simulator.SimulateNTicks(1000, 1/1000)
 

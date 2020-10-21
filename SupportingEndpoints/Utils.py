@@ -45,10 +45,10 @@ def MakeData(x,y, td, width, modRange, disable, boilerPower=10000, tankageLimits
     #ins = [[],[],[],[],[],[]]
 
     # In Temperature, Inflow Rate, Outflow Rate
-    user_disturbances = [[],[],[]] 
+    user_disturbances = [[] ,[], [], [], []] 
 
     # Water Level, Boiler Setpoint PID, Water Temperature + disturbances
-    stateInformation = [[],[],[],[]]
+    stateInformation = [[],[],[]]
 
     # Nothing here!
     outputs = []
@@ -68,18 +68,42 @@ def MakeData(x,y, td, width, modRange, disable, boilerPower=10000, tankageLimits
             mod = math.sin(i * 0.005) * modRange #** 640 * 30
             boilerController.SetTarget(spTemp - math.floor(mod))
 
-        user_disturbances[0].append(boiler.waterInRatePerSecond)
+
+        # Flow Rate
+        user_disturbances[0].append(boiler.waterInRatePerSecond * 100)
+
+        # Temperature
         user_disturbances[1].append(boiler.GetInflowWaterTemp())
-        user_disturbances[2].append(boiler.waterOutRatePerSecond)
+
+        # Setpoint
+        user_disturbances[2].append(boilerController.temperatureSetPoint)
+
+        # Out Flow Rate
+        user_disturbances[3].append(boiler.waterOutRatePerSecond * 100)
+
+        # Out Flow Temperature
+        user_disturbances[4].append(boiler.GetBoilerWaterTemp())
+
+
+
+        # State Temperature
+        stateInformation[0].append(boiler.GetBoilerWaterTemp())
+
+        # State Volume
+        stateInformation[1].append(boiler.waterVolCurrent)
+
+        # State Power
+        stateInformation[2].append(boiler.boilerPerformance * boiler.boilerPercent * 0.01)
+
 
         # stateInformation[0].append(boiler.waterInRatePerSecond)
         # stateInformation[1].append(boiler.GetInflowWaterTemp())
         # stateInformation[2].append(boiler.waterOutRatePerSecond)
-        stateInformation[0].append(boilerController.temperatureSetPoint)
-        stateInformation[1].append(boiler.waterVolCurrent)
-        stateInformation[2].append(boiler.GetBoilerWaterTemp())
-        #stateInformation[3].append(boiler.boilerPercent * boiler.boilerPerformance)
-        stateInformation[3].append(boiler.boilerPercent * boiler.boilerPerformance)
+        # stateInformation[0].append(boilerController.temperatureSetPoint)
+        # stateInformation[1].append(boiler.waterVolCurrent)
+        # stateInformation[2].append(boiler.GetBoilerWaterTemp())
+        # #stateInformation[3].append(boiler.boilerPercent * boiler.boilerPerformance)
+        # stateInformation[3].append(boiler.boilerPercent * 100)# * boiler.boilerPerformance)
         
         # print("[TIME {:.02f}s][{:.02f}h] Average Simulation Rate (Dilated): {:.04f} hz".format((i + 1) * simulator.timeDilation, ((i + 1) * simulator.timeDilation) / 3600, simulator.ProcessAvgFramerate()))
         # print("[TIME {:.02f}s] Boiler Water Level is {:.03f}L @ {:.02f}°C".format((i + 1) * simulator.timeDilation, boiler.GetWaterLevel(), boiler.GetBoilerWaterTemp()))
