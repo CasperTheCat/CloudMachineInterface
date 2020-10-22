@@ -33,15 +33,17 @@ step = Utils.step
 # print(ins.shape)
 # print(rawins.shape)
 
+
 # 60k seconds, measuring every minute
 disturbs, states, targetDisturbs, targetStates = Utils.MakeData(60000, 55, dilation, seqLength, 10, False, step=step, stack=False)
+
 disturbs2, states2, targetDisturbs2, targetStates2 = Utils.MakeData(60000, 45, dilation, seqLength, 10, False, step=step, stack=False)
 disturbs3, states3, targetDisturbs3, targetStates3 = Utils.MakeData(60000, 35, dilation, seqLength, 4, False, step=step, stack=False)
 
 disturbs = numpy.concatenate((disturbs, disturbs2, disturbs3))
 states = numpy.concatenate((states, states2,states3))
-# targetDisturbs = numpy.concatenate((targetDisturbs, targetDisturbs2, targetDisturbs3))
-# targetStates = numpy.concatenate((targetStates, targetStates2, targetStates3))
+targetDisturbs = numpy.concatenate((targetDisturbs, targetDisturbs2, targetDisturbs3))
+targetStates = numpy.concatenate((targetStates, targetStates2, targetStates3))
 
 val_disturbs, val_states, val_targetDisturbs, val_targetStates = Utils.MakeData(60000, 75, dilation, seqLength, 2, False, step=60, stack=False)
 
@@ -54,46 +56,6 @@ print(inFeed.shape)
 #inVal = numpy.concatenate((val_disturbs, val_states), axis=2)
 
 
-
-#print(ins.shape)
-
-l1t = inFeed[:-1]
-l2t = inFeed[1:]
-
-l1 = l1t.transpose()[0]
-l2 = l2t.transpose()[0]
-
-l1 = l1t.transpose()
-l2 = l2t.transpose()
-
-
-print(l1.shape, l2.shape)
-
-
-kalman = modred.OKID(l1, l2, disturbs.shape[0] // 3)
-era = modred.ERA()
-#a,b,c = era.compute_model(kalman, 10, 10)
-#b = b * (1/(step * dilation))
-a,b,c = modred.era.compute_ERA_model(kalman, 1)
-#b = b * (1 / (step * dilation))
-b = b * 0.0
-
-asb = control.ss(a,b,c, numpy.zeros((c.shape[0], b.shape[1])))
-#print(asb)
-
-poles = control.pole(asb)
-#print(poles)
-
-
-
-
-
-# t, yo, xo = control.forced_response(asb, numpy.arange(0, len(l1[1])), U=l1)
-# #print(t)
-# yo = yo[2].transpose()
-# print(yo.shape)
-
-
 ##### ##### ########## ##### #####
 ## Build History
 ##
@@ -102,56 +64,50 @@ poles = control.pole(asb)
 # There's no benefit to building backwards since each step is discrete
 
 # How far back?
-backstep = seqLength#len(l1t) - 1
-print(len(l1t))
+backstep = seqLength#len(inFeed) - 1
 
 pairwiseErrors = []
+offset = Utils.offset + seqLength # Move forward, every other predictor eats the beginning of the time series
+lastStep = inFeed[offset]#numpy.ones(.shape)
 
-for i in range(backstep):
+
+for i in range(offset, offset + backstep):
     itu = numpy.expand_dims(inFeed[i], 0)
 
-    print(l1t[i:(i+1) + seqLength].shape)
+    boilerTemp = lastStep[4]
+    waterIn = lastStep[0] * step
+    waterTemp = lastStep[1]
+    waterVol = lastStep[5]
 
-    t, yo, xo = control.forced_response(
-        asb,
-        numpy.arange(0, len(l1t[i:(i+1) + seqLength])),
-        U=l1t[i:(i+1) + seqLength].transpose()
-    )
+    # S1 = (waterVol * boilerTemp + waterTemp * waterIn) / (waterIn + waterVol)
+    # S2 = boilerTemp + ((lastStep[6] * lastStep[7] * step) / (4200 * waterVol))
 
-    # t, yo, xo = control.forced_response(
-    #     asb,
-    #     numpy.arange(0, len(l1[0])),
-    #     U=l1[i:i+seqLength]
-    # )
+    boilerTemp = (waterVol * boilerTemp + waterTemp * waterIn) / (waterIn + waterVol)
+    boilerTemp = boilerTemp + ((lastStep[6] * lastStep[7] * step) / (4200 * waterVol))
 
-    # t, yo, xo = control.forced_response(
-    #     asb,
-    #     numpy.arange(0, 10),
-    #     U=l1t[i:i+10].transpose()
-    # )
-    
-    # print(yo.shape)
+    lastStep[4] = boilerTemp
 
-    # for j in range(0,100):
-    #     print(yo[j])
-    #     #print(yo[0][j], yo[1][j], yo[2][j])
+    tStat = inFeed[i]
 
-    # #print(yo)
-    # print(1/0)
-    print(i, yo.transpose()[-1], l2t[i])
-    tStat = l2t[i]
-    forecast = yo.transpose()[-1]
+    # print()
 
-    pairwiseErrors.append(forecast - tStat)
+    delta = lastStep - tStat
 
+    # Weight
+    delta = delta * Utils.StateOnlyWeight
+    print(delta)
+
+    pairwiseErrors.append(delta)
+
+    lastStep = tStat
 
 
 pairwiseErrors = Utils.MakeAccError(pairwiseErrors, flip=Utils.bFlip)
 
 
-dataP = targetStates.transpose()[0]
-dataT = targetStates.transpose()[1]
-dataS = targetStates.transpose()[2]
+dataP = inFeed.transpose()[4]
+dataT = inFeed.transpose()[5]
+dataS = inFeed.transpose()[6]
 dataX = pairwiseErrors.transpose()
 print(dataP.flatten().squeeze().shape)
 print(dataT.flatten().squeeze().shape)
@@ -163,13 +119,16 @@ dataX = list(dataX.flatten())
 
 fig = Utils.MakeScreen(dataP, dataT, dataS, dataX)
 
-fig.savefig("ME_{}.png".format(Utils.TimeNow()))   
 
 #ax = pd.plot()
+
+
+fig.savefig("EXS_{}.png".format(Utils.TimeNow()))
+
 fig.canvas.draw()
 fig.canvas.flush_events()
 
-
+Utils.MakeCSV(pairwiseErrors, "EXS_{}.csv".format(Utils.TimeNow()))
 
 #simulator.SimulateNTicks(1000, 1/1000)
 

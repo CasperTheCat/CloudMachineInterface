@@ -43,6 +43,7 @@ states = numpy.concatenate((states, states2,states3))
 # targetDisturbs = numpy.concatenate((targetDisturbs, targetDisturbs2, targetDisturbs3))
 # targetStates = numpy.concatenate((targetStates, targetStates2, targetStates3))
 
+
 val_disturbs, val_states, val_targetDisturbs, val_targetStates = Utils.MakeData(60000, 75, dilation, seqLength, 2, False, step=60, stack=False)
 
 print(disturbs.shape)
@@ -53,40 +54,93 @@ inVal = numpy.concatenate((val_disturbs, val_states), axis=1)
 print(inFeed.shape)
 #inVal = numpy.concatenate((val_disturbs, val_states), axis=2)
 
-
+offset = 30
 
 #print(ins.shape)
 
+l1t = inFeed[:-seqLength]
+l2t = inFeed[seqLength:]
+
+# Needed for OKID
 l1t = inFeed[:-1]
 l2t = inFeed[1:]
-
-l1 = l1t.transpose()[0]
-l2 = l2t.transpose()[0]
+v2t = inVal
 
 l1 = l1t.transpose()
 l2 = l2t.transpose()
+v2 = v2t.transpose()
 
+#l1 = states.transpose()
+l1 = Utils.TailState(l1, offset)[4]
+l2 = Utils.TailState(l2, offset)[4]
+v2 = Utils.TailState(v2, offset)[4]
+
+#l1[seqLength], l2[0])
+
+#print(1/0)
+
+l1t = l1.transpose()
+l2t = l2.transpose()
+v2t = v2.transpose()
+
+#l1 = l1t.transpose()
+#l2 = l2t.transpose()
 
 print(l1.shape, l2.shape)
 
 
-kalman = modred.OKID(l1, l2, disturbs.shape[0] // 3)
-era = modred.ERA()
-#a,b,c = era.compute_model(kalman, 10, 10)
-#b = b * (1/(step * dilation))
-a,b,c = modred.era.compute_ERA_model(kalman, 1)
-#b = b * (1 / (step * dilation))
-b = b * 0.0
+markovs = disturbs.shape[0] // 120
+minmcs = 6
+#markovs = 200
 
-asb = control.ss(a,b,c, numpy.zeros((c.shape[0], b.shape[1])))
-#print(asb)
+bestIndex = 0
+bestScore = -1000
 
-poles = control.pole(asb)
-#print(poles)
+def GetFitness(x):
+    li = numpy.zeros(x.shape)
+    dLi= li - x
 
+    absv = numpy.abs(dLi)
 
 
+    #return 1000 - numpy.sum(dLi)
+    return numpy.sum(dLi)
 
+
+for i in range(minmcs, markovs):
+    print("Attempting to get {} markovs ({}/{})".format(i,i-minmcs,markovs-minmcs))
+    try:
+        kalman = modred.OKID(l1, l2, i)
+        era = modred.ERA()
+        a,b,c = era.compute_model(kalman, 1, 3)
+        b = b * (1/(step * dilation))
+        #a,b,c = era.compute_model(kalman, 5, 15)
+        #b = b * (1/(step * dilation))
+        #a,b,c = modred.era.compute_ERA_model(kalman, 500)
+        #b = b * (1 / (step * dilation))
+        #b = b * 0.0
+
+        asb = control.ss(a,b,c, numpy.zeros((c.shape[0], b.shape[1])))
+        #print(asb)
+
+        poles = control.pole(asb)
+        print(poles)
+
+
+        score = GetFitness(poles)
+
+        print("{} scored {}".format(i, score))
+
+        if score > bestScore:
+            bestIndex = i
+            bestScore = score
+
+       
+    except Exception as e:
+        print("Fail on {}. {}".format(i,e))
+
+
+print("Using {} markovs".format(bestIndex))
 
 # t, yo, xo = control.forced_response(asb, numpy.arange(0, len(l1[1])), U=l1)
 # #print(t)
@@ -107,16 +161,16 @@ print(len(l1t))
 
 pairwiseErrors = []
 
-for i in range(backstep):
-    itu = numpy.expand_dims(inFeed[i], 0)
+for i in range(offset, offset + backstep):
+    #itu = numpy.expand_dims(inFeed[i], 0)
 
-    print(l1t[i:(i+1) + seqLength].shape)
+    #print(l1t[i:(i) + seqLength].shape)
 
-    t, yo, xo = control.forced_response(
-        asb,
-        numpy.arange(0, len(l1t[i:(i+1) + seqLength])),
-        U=l1t[i:(i+1) + seqLength].transpose()
-    )
+    # t, yo, xo = control.forced_response(
+    #     asb,
+    #     numpy.arange(0, len(l1t[i:(i) + seqLength])),
+    #     U=l1t[i:(i) + seqLength].transpose()
+    # )
 
     # t, yo, xo = control.forced_response(
     #     asb,
@@ -124,23 +178,31 @@ for i in range(backstep):
     #     U=l1[i:i+seqLength]
     # )
 
-    # t, yo, xo = control.forced_response(
-    #     asb,
-    #     numpy.arange(0, 10),
-    #     U=l1t[i:i+10].transpose()
-    # )
+    #print(l1t[i:(i) + seqLength])
+    itu = numpy.expand_dims(v2t[i:(i) + seqLength], 0)
+    print(l1t[i:(i) + seqLength])
+
+    #if i == offset + 2:
+    #    print(1/0)
+
+    t, yo, xo = control.forced_response(
+        asb,
+        numpy.arange(0, len(l1t[i:(i) + seqLength])),
+        U=Utils.TailState(itu, 10)
+    )
     
-    # print(yo.shape)
+    #print(yo.shape)
 
     # for j in range(0,100):
     #     print(yo[j])
     #     #print(yo[0][j], yo[1][j], yo[2][j])
 
     # #print(yo)
-    # print(1/0)
-    print(i, yo.transpose()[-1], l2t[i])
-    tStat = l2t[i]
-    forecast = yo.transpose()[-1]
+
+    print(i, yo.transpose()[-1], v2t[i+seqLength-1])
+
+    tStat = v2t[i+seqLength-1]
+    forecast = yo.transpose()[seqLength - 1]
 
     pairwiseErrors.append(forecast - tStat)
 
@@ -149,9 +211,9 @@ for i in range(backstep):
 pairwiseErrors = Utils.MakeAccError(pairwiseErrors, flip=Utils.bFlip)
 
 
-dataP = targetStates.transpose()[0]
-dataT = targetStates.transpose()[1]
-dataS = targetStates.transpose()[2]
+dataP = inFeed.transpose()[4]
+dataT = inFeed.transpose()[5]
+dataS = inFeed.transpose()[6]
 dataX = pairwiseErrors.transpose()
 print(dataP.flatten().squeeze().shape)
 print(dataT.flatten().squeeze().shape)
@@ -163,12 +225,13 @@ dataX = list(dataX.flatten())
 
 fig = Utils.MakeScreen(dataP, dataT, dataS, dataX)
 
-fig.savefig("ME_{}.png".format(Utils.TimeNow()))   
+fig.savefig("MET_{}.png".format(Utils.TimeNow()))   
 
 #ax = pd.plot()
 fig.canvas.draw()
 fig.canvas.flush_events()
 
+Utils.MakeCSV(pairwiseErrors, "MET_{}.csv".format(Utils.TimeNow()))
 
 
 #simulator.SimulateNTicks(1000, 1/1000)

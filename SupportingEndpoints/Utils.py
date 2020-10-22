@@ -4,10 +4,90 @@ import time
 import datetime
 import numpy
 import math
+import unicodedata
+import re
+import matplotlib
+import matplotlib.pyplot
+import pandas
+
+dilation = 1
+seqLength = 5 * 12
+step = 60
+offset = 30
+Weights = [1, 1, 1, 1, 1, 1, 0.01, 0.100]
+StateOnlyWeight = [0, 0, 0, 0, 1, 1, 1, 0.1]
+bFlip = False
+
+
+def TailState(x, minTail =100):
+    nFeatures = x.shape[0]
+    nSamples = x.shape[1]
+    xt = numpy.copy(x).transpose()
+
+    nTailLength = max(nSamples // 100, minTail)
+    
+
+    for i in range(nTailLength):
+        xt[i] = xt[i] * 0#math.exp(-i / (nTailLength / 4) )
+
+    for i in range(nTailLength):
+        #print(xt[-nTailLength + i], math.exp(-i / (nTailLength / 4) ) )
+        xt[-nTailLength + i] = xt[-nTailLength + i] * math.exp(-i / (nTailLength / 4) )
+
+    # begArray = numpy.zeros(nFeatures * nTailLength).reshape((nFeatures, nTailLength))
+    # endArray = numpy.zeros(nFeatures * nTailLength).reshape((nFeatures, nTailLength)).tranpose()
+    
+
+    # for i in range(nTailLength):
+    #     endArray[i] = x[-1] * math.exp(-i / (nTailLength / 4) )
+
+    # endArray = 
+    return xt.transpose()
+
+def MakeAccError(inVal, flip=True):
+    pairwiseErrors = numpy.array(inVal)
+
+    # Abs Errors
+    absPairwise = numpy.absolute(pairwiseErrors)
+
+    #pairwiseErrors = numpy.cumsum(absPairwise)
+
+
+    pairwiseErrors = absPairwise
+
+    if len(pairwiseErrors.shape) > 1:
+        # Sum
+        print(pairwiseErrors[0])
+        pairwiseErrors = numpy.sum(pairwiseErrors, axis=1)
+        print(pairwiseErrors[0])
+
+    if flip:
+        pairwiseErrors = numpy.flip(pairwiseErrors)
+    #print(pairwiseErrors[0])
+    pairwiseErrors = numpy.cumsum(pairwiseErrors)
+    if flip:
+        pairwiseErrors = numpy.flip(pairwiseErrors)
+
+    return pairwiseErrors
+
+def slugify(value):
+    """
+    Normalizes string, converts to lowercase, removes non-alpha characters,
+    and converts spaces to hyphens.
+    """
+    value = unicodedata.normalize('NFKD', value).encode('ascii', 'ignore')
+    value = value.replace(b".", b"-")
+    value = re.sub(b'[^\w\s-]', b'', value).strip()#.lower()
+    value = re.sub(b'[-\s]+', b'-', value)
+    # ...
+    return value.decode()
+
 
 def TimeNow():
     print("WEEEEEE")
-    return datetime.datetime.now().isoformat()
+
+    
+    return slugify(datetime.datetime.now().isoformat())
 
 
 #https://stackoverflow.com/questions/15722324/sliding-window-of-m-by-n-shape-numpy-ndarray
@@ -70,7 +150,7 @@ def MakeData(x,y, td, width, modRange, disable, boilerPower=10000, tankageLimits
 
 
         # Flow Rate
-        user_disturbances[0].append(boiler.waterInRatePerSecond * 100)
+        user_disturbances[0].append(boiler.waterInRatePerSecond)
 
         # Temperature
         user_disturbances[1].append(boiler.GetInflowWaterTemp())
@@ -79,21 +159,23 @@ def MakeData(x,y, td, width, modRange, disable, boilerPower=10000, tankageLimits
         user_disturbances[2].append(boilerController.temperatureSetPoint)
 
         # Out Flow Rate
-        user_disturbances[3].append(boiler.waterOutRatePerSecond * 100)
+        user_disturbances[3].append(boiler.waterOutRatePerSecond)
 
         # Out Flow Temperature
         user_disturbances[4].append(boiler.GetBoilerWaterTemp())
 
 
 
-        # State Temperature
-        stateInformation[0].append(boiler.GetBoilerWaterTemp())
-
         # State Volume
-        stateInformation[1].append(boiler.waterVolCurrent)
+        stateInformation[0].append(boiler.waterVolCurrent)
 
         # State Power
-        stateInformation[2].append(boiler.boilerPerformance * boiler.boilerPercent * 0.01)
+        stateInformation[1].append(boiler.boilerPerformance)
+        
+        stateInformation[2].append(boiler.boilerPercent)
+
+        # State Temperature
+        #stateInformation[2].append(boiler.GetBoilerWaterTemp())
 
 
         # stateInformation[0].append(boiler.waterInRatePerSecond)
@@ -142,7 +224,8 @@ def MakeData(x,y, td, width, modRange, disable, boilerPower=10000, tankageLimits
         return disturbStacked, stateStacked, disturbs[width:], states[width:]
 
     else:
-        return disturbs, states, None, None
+        #return disturbs[:-width], states[:-width], disturbs[width:], states[width:]
+        return disturbs, states, disturbs[width:], states[width:]
 
     # nins = numpy.array([numpy.array(xi) for xi in ins]).transpose()
     # nouts = numpy.array([numpy.array(xi) for xi in outs]).transpose()
@@ -171,3 +254,122 @@ print(rO)
 print(TimeNow())
 
 
+def MakeScreen(dataP, dataT, dataS, dataX, maxY=240):  
+    maxTDPI = 240
+    resolution = numpy.array((1920, 1080))
+    TargetDPI = maxTDPI
+
+    solvedSize = resolution / TargetDPI
+
+    fig = matplotlib.pyplot.figure(dpi=TargetDPI, figsize=solvedSize)#figsize=(lScalar*scaleWidth, min((lScalar * scaleWidth*scaleWidth / 16), max(16, (lScalar * 18 / 16)))))
+    ax = matplotlib.pyplot.axes()
+    #ax2 = ax.twin()
+    dra, = ax.plot([],[])#, linestyle="--")
+    two, = ax.plot([],[])
+    three, = ax.plot([],[])
+    four, = ax.plot([],[])
+
+    iTime = 30
+
+    color = (0.05,0.05,0.05)
+    # ax.plot([-5,iTime+5], [60,60])
+    # ax.plot([-5,iTime+5], [30,30])
+    ax.axhline(65, linestyle='--', color='red')
+    ax.yaxis.grid(True, color='white')
+
+
+    ax.set_facecolor(color)
+    fig.set_facecolor(color)
+
+    ax.set_xlabel("Time (Seconds)", color='white')
+    ax.set_ylabel("Heat (°C) / Boiler Power Level (%)", color='white')
+    #ax.set_ylim(top=maxY, bottom=-1)
+    ax.set_ylim(top=maxY, bottom=-5)
+    #ax.set_xlim(left=-5, right=iTime+5)
+    ax.tick_params(axis='x', colors='white')
+    ax.tick_params(axis='y', colors='white')
+    ax.spines['bottom'].set_color('white')
+    ax.spines['top'].set_color('white') 
+    ax.spines['right'].set_color('white')
+    ax.spines['left'].set_color('white')
+
+            # user_disturbances[0].append(boiler.waterInRatePerSecond)
+            # user_disturbances[1].append(boiler.GetInflowWaterTemp())
+            # user_disturbances[2].append(boiler.waterOutRatePerSecond)
+
+            # stateInformation[3].append(boilerController.temperatureSetPoint)
+            # stateInformation[4].append(boiler.waterVolCurrent)
+            # stateInformation[5].append(boiler.GetBoilerWaterTemp())
+
+    #input("Press Any Key")
+
+
+    ax.collections.clear()
+    #ax.fill_between(dataHolderRt[:len(comp)], comp - (2 * err), comp + (2 * err), facecolor='blue', alpha=0.25)
+    # dataP = yo#numpy.concatenate([dataP, [yo]])
+    # dataT = youts
+    # dataP = tempsPred
+
+
+    # dataP = numpy.array(distPreds).transpose()[1]
+    # dataT = targetDisturbs.transpose()[1]
+    # print(dataT.flatten().squeeze().shape)
+    # print(len(dataP))
+    # dataT = list(dataT.flatten())
+    # dataP = list(dataP.flatten())
+
+
+
+
+
+    #dataS = distPreds[2]
+
+
+
+
+    # dataT = numpy.concatenate([dataT, [boiler.boilerPercent * 100]])
+    # dataX = numpy.concatenate([dataX, [boiler.waterOutRatePerSecond * 100]])
+    # dataS = numpy.concatenate([dataS, [boiler.waterVolCurrent]])
+
+    #removalCutter = numpy.argmax(dataP > (dataP[-1] - iTime))
+
+    #dra.set_ydata(dataP[removalCutter:])
+    at = 0#max((len(dataP) - 1) - iTime, 0)
+    at = min(min(len(dataP), len(dataX)), min(len(dataS), len(dataT)))
+
+    # dataP = dataP[at:]
+    # dataT = dataT[at:]
+    # dataS = dataS[at:]
+    # dataX = dataX[at:]
+    dataP = dataP[:at]
+    dataT = dataT[:at]
+    dataS = dataS[:at]
+    dataX = dataX[:at]
+
+    print(len(dataP))
+    print(len(dataT))
+    dra.set_xdata(numpy.arange(0, len(dataP)) * dilation)
+    dra.set_ydata(dataP)
+    two.set_xdata(numpy.arange(0, len(dataT)) * dilation)
+    two.set_ydata(dataT)
+    three.set_xdata(numpy.arange(0, len(dataS)) * dilation)
+    three.set_ydata(dataS)
+    four.set_xdata(numpy.arange(0, len(dataX)) * dilation)
+    four.set_ydata(dataX)
+
+
+
+    # three.set_xdata(numpy.arange(0, len(dataP)) * simulator.timeDilation)
+    # three.set_ydata(dataS)
+    # four.set_xdata(numpy.arange(0, len(dataP)) * simulator.timeDilation)
+    # four.set_ydata(dataX)
+
+    ax.set_xlim(left=-5, right=len(dataP) * dilation +5)
+
+    return fig
+
+
+def MakeCSV(x, outpath):
+    hey = pandas.DataFrame(x)
+
+    hey.to_csv(outpath)
