@@ -44,16 +44,14 @@ def TailState(x, minTail =100):
     # endArray = 
     return xt.transpose()
 
-def MakeAccError(inVal, flip=True):
+def MakeAccError(inVal, flip=True, useAbs=True):
     pairwiseErrors = numpy.array(inVal)
 
     # Abs Errors
-    absPairwise = numpy.absolute(pairwiseErrors)
+    if useAbs:
+        pairwiseErrors = numpy.absolute(pairwiseErrors)
 
     #pairwiseErrors = numpy.cumsum(absPairwise)
-
-
-    pairwiseErrors = absPairwise
 
     if len(pairwiseErrors.shape) > 1:
         # Sum
@@ -254,7 +252,7 @@ print(rO)
 print(TimeNow())
 
 
-def MakeScreen(dataP, dataT, dataS, dataX, maxY=240):  
+def MakeScreen(dataP, dataT, dataS, dataX, maxY=240, dataPLabel = "Simulated Truth", dataTLabel = "Modelled Value", dataSLabel = "Signed Error", dataXLabel = "Abs. Error"):  
     maxTDPI = 240
     resolution = numpy.array((1920, 1080))
     TargetDPI = maxTDPI
@@ -265,16 +263,22 @@ def MakeScreen(dataP, dataT, dataS, dataX, maxY=240):
     ax = matplotlib.pyplot.axes()
     #ax2 = ax.twin()
     dra, = ax.plot([],[])#, linestyle="--")
+    dra.set_label(dataPLabel)
     two, = ax.plot([],[])
+    two.set_label(dataTLabel)
     three, = ax.plot([],[])
+    three.set_label(dataSLabel)
     four, = ax.plot([],[])
+    four.set_label(dataXLabel)
+
+    ax.legend([dataPLabel, dataTLabel, dataSLabel, dataXLabel])
 
     iTime = 30
 
     color = (0.05,0.05,0.05)
     # ax.plot([-5,iTime+5], [60,60])
     # ax.plot([-5,iTime+5], [30,30])
-    ax.axhline(65, linestyle='--', color='red')
+#    ax.axhline(65, linestyle='--', color='red')
     ax.yaxis.grid(True, color='white')
 
 
@@ -284,7 +288,7 @@ def MakeScreen(dataP, dataT, dataS, dataX, maxY=240):
     ax.set_xlabel("Time (Seconds)", color='white')
     ax.set_ylabel("Heat (°C) / Boiler Power Level (%)", color='white')
     #ax.set_ylim(top=maxY, bottom=-1)
-    ax.set_ylim(top=maxY, bottom=-5)
+    ax.set_ylim(top=maxY, bottom=-maxY)
     #ax.set_xlim(left=-5, right=iTime+5)
     ax.tick_params(axis='x', colors='white')
     ax.tick_params(axis='y', colors='white')

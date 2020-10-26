@@ -17,7 +17,7 @@ dilation = Utils.dilation
 seqLength = Utils.seqLength
 step = Utils.step
 
-# disabledisturb = True
+disabledisturb = True
 
 # #ins, outs, tests, rawins = MakeData(30000,55,dilation, seqLength, 35, disabledisturb)
 # #yins, youts, ytest, rawyins = MakeData(15000,45,dilation, seqLength, 21, disabledisturb)
@@ -35,10 +35,10 @@ step = Utils.step
 
 
 # 60k seconds, measuring every minute
-disturbs, states, targetDisturbs, targetStates = Utils.MakeData(60000, 55, dilation, seqLength, 10, False, step=step, stack=False)
+disturbs, states, targetDisturbs, targetStates = Utils.MakeData(60000, 55, dilation, seqLength, 10, disabledisturb and False, step=step, stack=False)
 
-disturbs2, states2, targetDisturbs2, targetStates2 = Utils.MakeData(60000, 45, dilation, seqLength, 10, False, step=step, stack=False)
-disturbs3, states3, targetDisturbs3, targetStates3 = Utils.MakeData(60000, 35, dilation, seqLength, 4, False, step=step, stack=False)
+disturbs2, states2, targetDisturbs2, targetStates2 = Utils.MakeData(60000, 45, dilation, seqLength, 10, disabledisturb, step=step, stack=False)
+disturbs3, states3, targetDisturbs3, targetStates3 = Utils.MakeData(60000, 35, dilation, seqLength, 4, disabledisturb, step=step, stack=False)
 
 disturbs = numpy.concatenate((disturbs, disturbs2, disturbs3))
 states = numpy.concatenate((states, states2,states3))
@@ -68,28 +68,35 @@ backstep = seqLength#len(inFeed) - 1
 
 offset = Utils.offset + seqLength # Move forward, every other predictor eats the beginning of the time series
 pairwiseErrors = []
-lastStep = inFeed[offset]#numpy.ones(.shape)
-
+lastStep = inVal[offset]#numpy.ones(.shape)
+preds = []
 
 for i in range(offset, offset + backstep):
     itu = numpy.expand_dims(inFeed[i], 0)
 
-    tStat = inFeed[i]
+    tStat = inVal[i]
 
-    pairwiseErrors.append(lastStep - tStat)
+    delta = lastStep - tStat
+    delta = delta * Utils.StateOnlyWeight
+
+    preds.append(lastStep[4])
+
+    pairwiseErrors.append(delta)
 
     lastStep = tStat
 
 
 print("Hwl",len(pairwiseErrors))
 
+pairwiseErrorsAcc = Utils.MakeAccError(pairwiseErrors, flip=Utils.bFlip, useAbs=False)
 pairwiseErrors = Utils.MakeAccError(pairwiseErrors, flip=Utils.bFlip)
 
 print(len(pairwiseErrors))
 
-dataP = inFeed.transpose()[4]
-dataT = inFeed.transpose()[5]
-dataS = inFeed.transpose()[6]
+dataP = inVal[offset:].transpose()[4]
+#dataT = inFeed.transpose()[5]
+dataT = numpy.array(preds)
+dataS = pairwiseErrorsAcc.transpose()
 dataX = pairwiseErrors.transpose()
 print(dataP.flatten().squeeze().shape)
 print(dataT.flatten().squeeze().shape)

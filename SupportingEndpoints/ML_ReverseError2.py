@@ -14,8 +14,8 @@ import matplotlib
 import matplotlib.pyplot
 physical_devices = tf.config.list_physical_devices('GPU')
 tf.config.experimental.set_memory_growth(physical_devices[0], enable=True)
-#matplotlib.interactive(True)
-#matplotlib.use("TkAgg") 
+matplotlib.interactive(True)
+matplotlib.use("TkAgg") 
 import numpy
 import math
 
@@ -84,18 +84,18 @@ predmodel = keras.Sequential(
     [
         #layers.Embedding(input_shape=(100, 3), output_dim=128),
         layers.Input(shape=(seqLength, states.shape[2] + disturbs.shape[2])),
-        layers.LSTM(1024, return_sequences=True),
-        layers.Dropout(0.1),
+        #layers.LSTM(256, return_sequences=True),
+        #layers.Dropout(0.1),
         #layers.LSTM(1024, return_sequences=True),
         #layers.GRU(64, return_sequences=True),
         #layers.LSTM(128, return_sequences=True),
-        layers.LSTM(1024, return_sequences=False),
+        layers.LSTM(seqLength, return_sequences=False),
         layers.Dropout(0.1),
         #layers.LSTM(64, return_sequences=True),
         #layers.LSTM(64, return_sequences=True),
         
         layers.Dense(1024, activation='relu'),
-        layers.Dense(states.shape[2]+ disturbs.shape[2])
+        layers.Dense(1)#states.shape[2]+ disturbs.shape[2])
     ]
 )
 
@@ -109,7 +109,7 @@ forecastmodel.compile(
 predmodel.compile(
     #loss=keras.losses.SparseCategoricalCrossentropy(from_logits=True),
     loss="mse",
-    optimizer=keras.optimizers.Adam(learning_rate=0.001),
+    optimizer=keras.optimizers.Adam(learning_rate=0.01),
     #metrics=["accuracy"],
 )
 
@@ -117,7 +117,7 @@ predmodel.compile(
 predmodel.summary()
 forecastmodel.summary()
 
-epochlies = 3
+epochlies = 15
 
 #predmodel.fit(ins, outs, validation_data=(yins, youts), batch_size=16, epochs=epochlies)
 
@@ -134,6 +134,9 @@ inFeed = numpy.concatenate((disturbs, states), axis=2)
 inFeedStates= numpy.concatenate((targetDisturbs, targetStates), axis=1)
 inVal = numpy.concatenate((val_disturbs, val_states), axis=2)
 inValStates = numpy.concatenate((val_targetDisturbs, val_targetStates), axis=1)
+
+inFeedStates = inFeedStates.transpose()[4].transpose()
+inValStates = inValStates.transpose()[4].transpose()
 
 print(inVal.shape)
 print(inFeed.shape)
@@ -169,9 +172,9 @@ for i in range(backstep):
     tStat = inValStates[i]
 
     delta = forecast - tStat
-    delta = delta * Utils.StateOnlyWeight
+    delta = delta * Utils.StateOnlyWeight[4]
 
-    predicts.append(forecast[4])
+    predicts.append(forecast)
 
     pairwiseErrors.append(forecast - tStat)
 

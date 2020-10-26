@@ -104,7 +104,7 @@ poles = control.pole(asb)
 # How far back?
 backstep = seqLength#len(l1t) - 1
 print(len(l1t))
-
+preds = []
 pairwiseErrors = []
 
 for i in range(backstep):
@@ -145,14 +145,16 @@ for i in range(backstep):
     pairwiseErrors.append(forecast - tStat)
 
 
-
+pairwiseErrorsAcc = Utils.MakeAccError(pairwiseErrors, flip=Utils.bFlip, useAbs=False)
 pairwiseErrors = Utils.MakeAccError(pairwiseErrors, flip=Utils.bFlip)
 
 
-dataP = targetStates.transpose()[0]
-dataT = targetStates.transpose()[1]
-dataS = targetStates.transpose()[2]
+dataP = v2t[seqLength:].transpose()[4]
+#dataT = inFeed.transpose()[5]
+dataT = numpy.array(preds)
+dataS = pairwiseErrorsAcc.transpose()
 dataX = pairwiseErrors.transpose()
+
 print(dataP.flatten().squeeze().shape)
 print(dataT.flatten().squeeze().shape)
 #print(len(dataP))

@@ -97,7 +97,7 @@ minmcs = 6
 markovs = 12
 
 bestIndex = 0
-bestScore = -1000
+bestScore = 1000
 
 def GetFitness(x):
     li = numpy.zeros(x.shape)
@@ -106,8 +106,8 @@ def GetFitness(x):
     absv = numpy.abs(dLi)
 
 
-    #return 1000 - numpy.sum(dLi) * numpy.sum(dLi)numpy.abs(dLi)
-    return numpy.sum(dLi)
+    #return 1000 - numpy.sum(dLi)# * numpy.sum(dLi)numpy.abs(dLi)
+    return -numpy.sum(dLi)
 
 
 
@@ -121,10 +121,10 @@ for i in range(minmcs, markovs):
         a,b,c = era.compute_model(kalman, 1, 7)
         b = b * (1/(step * dilation))
         a,b,c = modred.era.compute_ERA_model(kalman, 500)
-        b = b * (1 / (step * dilation))
+        #b = b * (1 / (step * dilation))
         #b = b * 0.0
 
-        asb = control.ss(a,b,c, numpy.zeros((c.shape[0], b.shape[1])))
+        asb = control.ss(a,b,c, numpy.zeros((c.shape[0], b.shape[1])), step)
         #print(asb)
 
         poles = control.pole(asb)
@@ -134,7 +134,7 @@ for i in range(minmcs, markovs):
 
         print("{} scored {}".format(i, score))
 
-        if score > bestScore:
+        if score < bestScore:
             bestIndex = i
             bestScore = score
 
@@ -197,7 +197,7 @@ for i in range(offset, offset + backstep):
     
     t, yo, xo = control.forced_response(
         asb,
-        numpy.arange(0, len(l1t[i:(i) + seqLength])),
+        numpy.arange(0, len(l1t[i:(i) + seqLength])) * step,
         U=v2t[i:(i) + seqLength].transpose()
     )
 
@@ -241,14 +241,14 @@ dataX = list(dataX.flatten())
 
 fig = Utils.MakeScreen(dataP, dataT, dataS, dataX)
 
-fig.savefig("METy_{}.png".format(Utils.TimeNow()))   
+fig.savefig("DTC_{}.png".format(Utils.TimeNow()))   
 
 #ax = pd.plot()
 fig.canvas.draw()
 fig.canvas.flush_events()
 
-Utils.MakeCSV(pairwiseErrors, "METy_{}.csv".format(Utils.TimeNow()))
-Utils.MakeCSV(pairwiseErrorsAcc, "METy_{}_SIGNED.csv".format(Utils.TimeNow()))
+Utils.MakeCSV(pairwiseErrors, "DTC_{}.csv".format(Utils.TimeNow()))
+Utils.MakeCSV(pairwiseErrorsAcc, "DTC_{}_SIGNED.csv".format(Utils.TimeNow()))
 
 #simulator.SimulateNTicks(1000, 1/1000)
 
