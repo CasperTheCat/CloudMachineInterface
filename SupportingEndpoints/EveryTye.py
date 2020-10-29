@@ -146,6 +146,12 @@ def CreateOKIDERA(l1, l2, i, step, dilation):
     #b = b * (1 / (step * dilation))
     #b = b * 0.0
 
+    print("Mats")
+    print(a)
+    print(b)
+    print(c)
+    print()
+
     asb = control.ss(a,b,c, numpy.zeros((c.shape[0], b.shape[1])), step)
     #print(asb)
 
@@ -195,7 +201,7 @@ asb, score = CreateOKIDERA(l1, l2 ,bestIndex, step, dilation)
 # There's no benefit to building backwards since each step is discrete
 
 # How far back?
-backstep = seqLength * 3#len(l1t) - 1
+backstep = seqLength * 6#len(l1t) - 1
 print(len(l1t))
 
 pairwiseErrors = []
@@ -245,13 +251,13 @@ for i in range(offset, offset + backstep):
     #     #print(yo[0][j], yo[1][j], yo[2][j])
 
     # #print(yo)
-
-    print(i, yo.transpose()[-1], v2t[i+seqLength-1][4])
-
+    indexer = -1
     ls = v2t[i:(i) + seqLength]
-    tStat = ls[-1][4]
+    tStat = ls[indexer][4]
+    forecast = yo.transpose()[indexer]
     #forecast = yo.transpose()[seqLength - 1]
-    forecast = yo.transpose()[-1]
+    print(i, forecast, tStat)
+
     preds.append(forecast)
 
     delta = forecast - tStat
@@ -280,14 +286,14 @@ dataX = list(dataX.flatten())
 
 fig = Utils.MakeScreen(dataP, dataT, dataS, dataX)
 
-fig.savefig("DTC_{}.png".format(Utils.TimeNow()))   
+fig.savefig("DTCE_{}.png".format(Utils.TimeNow()))   
 
 #ax = pd.plot()
 fig.canvas.draw()
 fig.canvas.flush_events()
 
-Utils.MakeCSV(pairwiseErrors, "DTC_{}.csv".format(Utils.TimeNow()))
-Utils.MakeCSV(pairwiseErrorsAcc, "DTC_{}_SIGNED.csv".format(Utils.TimeNow()))
+Utils.MakeCSV(pairwiseErrors, "DTCE_{}.csv".format(Utils.TimeNow()))
+Utils.MakeCSV(pairwiseErrorsAcc, "DTCE_{}_SIGNED.csv".format(Utils.TimeNow()))
 
 #simulator.SimulateNTicks(1000, 1/1000)
 

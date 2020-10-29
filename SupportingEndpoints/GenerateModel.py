@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+import pickle
 import control
 import modred
 from ProcessSimulation import CSimulator
@@ -18,31 +19,18 @@ dilation = Utils.dilation
 seqLength = Utils.seqLength
 step = Utils.step
 
-disabledisturb = True
-
-# #ins, outs, tests, rawins = MakeData(30000,55,dilation, seqLength, 35, disabledisturb)
-# #yins, youts, ytest, rawyins = MakeData(15000,45,dilation, seqLength, 21, disabledisturb)
-
-# ins, outs, tests, rawins = MakeData(10000,55,dilation, seqLength, 35, disabledisturb)
-# dins, douts, dtests, drawins = MakeData(10000,55,dilation / 20, seqLength, 35, disabledisturb)
-# yins, youts, ytest, rawyins = MakeData(5000,85,dilation, seqLength, 21, disabledisturb and False)
-
-
-# tests = numpy.concatenate((tests, dtests))
-# rawins = numpy.concatenate((rawins, drawins))
-
-# print(ins.shape)
-# print(rawins.shape)
-
+disabledisturb = False
 allShape = 35000
 
 # 60k seconds, measuring every minute
 disturbs, states, targetDisturbs, targetStates = Utils.MakeData(allShape, 55, dilation, seqLength, 10, disabledisturb and False, step=step, stack=False, seed=0)
 disturbs2, states2, targetDisturbs2, targetStates2 = Utils.MakeData(allShape, 45, dilation, seqLength, 10, disabledisturb, step=step, stack=False, seed=2)
 disturbs3, states3, targetDisturbs3, targetStates3 = Utils.MakeData(allShape, 35, dilation, seqLength, 4, disabledisturb, step=step, stack=False, seed=5)
+disturbs4, states4, targetDisturbs4, targetStates4 = Utils.MakeData(allShape, 85, dilation, seqLength, 18, disabledisturb, step=step, stack=False, seed=8)
+disturbs5, states5, targetDisturbs5, targetStates5 = Utils.MakeData(allShape, 95, dilation, seqLength, 7, disabledisturb, step=step, stack=False, seed=11)
 
-disturbs = numpy.concatenate((disturbs, disturbs2, disturbs3))
-states = numpy.concatenate((states, states2,states3))
+disturbs = numpy.concatenate((disturbs, disturbs2, disturbs3, disturbs4, disturbs5))
+states = numpy.concatenate((states, states2, states3, states4, states5))
 # targetDisturbs = numpy.concatenate((targetDisturbs, targetDisturbs2, targetDisturbs3))
 # targetStates = numpy.concatenate((targetStates, targetStates2, targetStates3))
 
@@ -79,18 +67,12 @@ l1 = Utils.TailState(l1, offset)
 l2 = Utils.TailState(l2, offset)[4]
 v2 = Utils.TailState(v2, offset)
 
-#l1[seqLength], l2[0])
-
-#print(1/0)
-
+# Retranspose
 l1t = l1.transpose()
 l2t = l2.transpose()
 v2t = v2.transpose()
 
-#l1 = l1t.transpose()
-#l2 = l2t.transpose()
-
-print(l1.shape, l2.shape)
+#print(l1.shape, l2.shape)
 
 
 markovs = disturbs.shape[0] // 120
@@ -98,7 +80,7 @@ minmcs = 6
 markovs = 60
 
 bestIndex = 0
-bestScore = 1 # Unstable
+bestScore = 1 # Unstable above 1
 
 def DistanceImagToPole(x):
     rScale = x.real
@@ -109,51 +91,34 @@ def DistanceImagToPole(x):
     return distSq
 
 def DistanceToZero(x):
-
     #dSq = numpy.power(x, 2)
-
     accumDist = 0
 
     for i in x:
         ds = DistanceImagToPole(i)
         accumDist += ds
 
-
-
     return accumDist
 
 # Generates a low number when close to zero
 def GetFitness(x):
     return DistanceToZero(x)
-    li = numpy.zeros(x.shape)
-    dLi= li - x
-
-    absv = numpy.abs(dLi)
-
-
-    #return 1000 - numpy.sum(dLi)# * numpy.sum(dLi)numpy.abs(dLi)
-    return -numpy.sum(dLi)
 
 
 def CreateOKIDERA(l1, l2, i, step, dilation):
     kalman = modred.OKID(l1, l2, i)
     era = modred.ERA()
-    a,b,c = era.compute_model(kalman, 1, 3)
-    b = b * (1/(step * dilation))
-    a,b,c = era.compute_model(kalman, 1, 7)
-    b = b * (1/(step * dilation))
     a,b,c = modred.era.compute_ERA_model(kalman, 500)
-    #b = b * (1 / (step * dilation))
-    #b = b * 0.0
+
+    # print("Mats")
+    # print(a)
+    # print(b)
+    # print(c)
+    # print()
 
     asb = control.ss(a,b,c, numpy.zeros((c.shape[0], b.shape[1])), step)
-    #print(asb)
-
     poles = control.pole(asb)
-    #print(poles)
-
     score = GetFitness(poles)
-
     return asb, score
 
 
@@ -181,10 +146,13 @@ print("Using {} markovs".format(bestIndex))
 
 asb, score = CreateOKIDERA(l1, l2 ,bestIndex, step, dilation)
 
-# t, yo, xo = control.forced_response(asb, numpy.arange(0, len(l1[1])), U=l1)
-# #print(t)
-# yo = yo[2].transpose()
-# print(yo.shape)
+##### ##### ########## ##### #####
+## Pickle
+##
+
+with open("Pickle.era", "wb+") as f:
+    pickle.dump(asb, f)
+
 
 
 ##### ##### ########## ##### #####
@@ -195,7 +163,7 @@ asb, score = CreateOKIDERA(l1, l2 ,bestIndex, step, dilation)
 # There's no benefit to building backwards since each step is discrete
 
 # How far back?
-backstep = seqLength * 3#len(l1t) - 1
+backstep = seqLength * 6#len(l1t) - 1
 print(len(l1t))
 
 pairwiseErrors = []
@@ -245,13 +213,13 @@ for i in range(offset, offset + backstep):
     #     #print(yo[0][j], yo[1][j], yo[2][j])
 
     # #print(yo)
-
-    print(i, yo.transpose()[-1], v2t[i+seqLength-1][4])
-
+    indexer = -1
     ls = v2t[i:(i) + seqLength]
-    tStat = ls[-1][4]
+    tStat = ls[indexer][4]
+    forecast = yo.transpose()[indexer]
     #forecast = yo.transpose()[seqLength - 1]
-    forecast = yo.transpose()[-1]
+    print(i, forecast, tStat)
+
     preds.append(forecast)
 
     delta = forecast - tStat
@@ -280,14 +248,14 @@ dataX = list(dataX.flatten())
 
 fig = Utils.MakeScreen(dataP, dataT, dataS, dataX)
 
-fig.savefig("DTC_{}.png".format(Utils.TimeNow()))   
+fig.savefig("DTCE_{}.png".format(Utils.TimeNow()))   
 
 #ax = pd.plot()
 fig.canvas.draw()
 fig.canvas.flush_events()
 
-Utils.MakeCSV(pairwiseErrors, "DTC_{}.csv".format(Utils.TimeNow()))
-Utils.MakeCSV(pairwiseErrorsAcc, "DTC_{}_SIGNED.csv".format(Utils.TimeNow()))
+Utils.MakeCSV(pairwiseErrors, "DTCE_{}.csv".format(Utils.TimeNow()))
+Utils.MakeCSV(pairwiseErrorsAcc, "DTCE_{}_SIGNED.csv".format(Utils.TimeNow()))
 
 #simulator.SimulateNTicks(1000, 1/1000)
 

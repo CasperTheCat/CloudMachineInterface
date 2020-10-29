@@ -34,7 +34,7 @@ disabledisturb = True
 # print(ins.shape)
 # print(rawins.shape)
 
-allShape = 35000
+allShape = 12000
 
 # 60k seconds, measuring every minute
 disturbs, states, targetDisturbs, targetStates = Utils.MakeData(allShape, 55, dilation, seqLength, 10, disabledisturb and False, step=step, stack=False, seed=0)
@@ -138,10 +138,10 @@ def GetFitness(x):
 def CreateOKIDERA(l1, l2, i, step, dilation):
     kalman = modred.OKID(l1, l2, i)
     era = modred.ERA()
-    a,b,c = era.compute_model(kalman, 1, 3)
-    b = b * (1/(step * dilation))
-    a,b,c = era.compute_model(kalman, 1, 7)
-    b = b * (1/(step * dilation))
+    #a,b,c = era.compute_model(kalman, 1, 3)
+    #b = b * (1/(step * dilation))
+    #a,b,c = era.compute_model(kalman, 1, 7)
+    #b = b * (1/(step * dilation))
     a,b,c = modred.era.compute_ERA_model(kalman, 500)
     #b = b * (1 / (step * dilation))
     #b = b * 0.0
@@ -195,11 +195,13 @@ asb, score = CreateOKIDERA(l1, l2 ,bestIndex, step, dilation)
 # There's no benefit to building backwards since each step is discrete
 
 # How far back?
-backstep = seqLength * 3#len(l1t) - 1
+backstep = seqLength#len(l1t) - 1
 print(len(l1t))
 
 pairwiseErrors = []
 preds = []
+
+predlists = v2t[offset:(offset) + seqLength]
 
 for i in range(offset, offset + backstep):
     #itu = numpy.expand_dims(inFeed[i], 0)
@@ -231,14 +233,19 @@ for i in range(offset, offset + backstep):
     #     U=Utils.TailState(v2t[i:(i) + seqLength], 10)
     # )
     
+    # t, yo, xo = control.forced_response(
+    #     asb,
+    #     numpy.arange(0, len(l1t[i:(i) + seqLength])) * step,
+    #     U=v2t[i:(i) + seqLength].transpose()
+    # )
+
     t, yo, xo = control.forced_response(
         asb,
         numpy.arange(0, len(l1t[i:(i) + seqLength])) * step,
-        U=v2t[i:(i) + seqLength].transpose()
+        U=predlists.transpose()
     )
 
-    # print(v2t[i:(i) + seqLength].shape)
-    # print(yo.shape)
+    #print(yo.shape)
 
     # for j in range(0,100):
     #     print(yo[j])
@@ -246,18 +253,20 @@ for i in range(offset, offset + backstep):
 
     # #print(yo)
 
-    print(i, yo.transpose()[-1], v2t[i+seqLength-1][4])
+    #print(i, yo.transpose()[-1], v2t[i+seqLength-1][4])
 
-    ls = v2t[i:(i) + seqLength]
-    tStat = ls[-1][4]
-    #forecast = yo.transpose()[seqLength - 1]
-    forecast = yo.transpose()[-1]
+    tStat = v2t[i+seqLength-1][4]
+    forecast = yo.transpose()[seqLength - 1]
     preds.append(forecast)
 
     delta = forecast - tStat
     delta = delta * Utils.StateOnlyWeight[4]
 
     pairwiseErrors.append(delta)
+
+    nv = predlists[-1]
+    nv[4] = forecast  -1
+    numpy.concatenate((predlists[1:], [nv]))
 
 
 pairwiseErrorsAcc = Utils.MakeAccError(pairwiseErrors, flip=Utils.bFlip, useAbs=False)

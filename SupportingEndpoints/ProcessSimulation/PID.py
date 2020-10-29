@@ -16,8 +16,12 @@ class PIDController(object):
         self.setPoint = value
 
     def Update(self, value, DeltaTime):
-        #Get Prop
+        # Get Prop
         error = self.setPoint - value
+
+        # Make positive error higher
+        # if error < 0:
+        #     error = error * 10
 
         self.iVal = self.iVal + error * DeltaTime
         derivative = (error - self.lastValue) / DeltaTime

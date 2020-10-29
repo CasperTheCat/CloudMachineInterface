@@ -12,7 +12,7 @@ import pandas
 
 dilation = 1
 seqLength = 5 * 12
-step = 60
+step = 1
 offset = 30
 Weights = [1, 1, 1, 1, 1, 1, 0.01, 0.100]
 StateOnlyWeight = [0, 0, 0, 0, 1, 1, 1, 0.1]
@@ -99,7 +99,7 @@ def window_stack(a, stepsize=1, width=3, nummax=None):
     #return numpy.hstack( a[i:1 + i-width or None:stepsize] for i in range(0, width))
 
 
-def MakeData(x,y, td, width, modRange, disable, boilerPower=10000, tankageLimits=(5,75,80), initWaterTemp=30, initCapacity=35, step=1, stack=True):
+def MakeData(x,y, td, width, modRange, disable, boilerPower=10000, tankageLimits=(5,75,80), initWaterTemp=30, initCapacity=35, step=1, stack=True, seed=0):
     simulator = CSimulator(td, 600000)
     #simulator = CSimulator(1, 200000)
 
@@ -108,7 +108,7 @@ def MakeData(x,y, td, width, modRange, disable, boilerPower=10000, tankageLimits
     lowLevelAlarm, highLevelAlarm, totalCapacity = tankageLimits
 
     boiler = simulator.SpawnObject(ABoiler, boilerPower, initCapacity, totalCapacity, initWaterTemp)
-    boilerController = simulator.SpawnObject(ABoilerController, lowLevelAlarm, highLevelAlarm, spTemp) # Heating to 95
+    boilerController = simulator.SpawnObject(ABoilerController, lowLevelAlarm, highLevelAlarm, spTemp, seed) # Heating to 95
     #boilerController = simulator.SpawnObject(ABoilerController, 50, 75, 95) # Heating to 95
     boilerController.Possess(boiler)
 

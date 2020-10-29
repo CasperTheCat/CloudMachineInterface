@@ -35,10 +35,10 @@ disabledisturb = True
 
 
 # 60k seconds, measuring every minute
-disturbs, states, targetDisturbs, targetStates = Utils.MakeData(60000, 55, dilation, seqLength, 10, disabledisturb and False, step=step, stack=False)
+disturbs, states, targetDisturbs, targetStates = Utils.MakeData(60000, 55, dilation, seqLength, 10, disabledisturb and False, step=step, stack=False, seed=0)
 
-disturbs2, states2, targetDisturbs2, targetStates2 = Utils.MakeData(60000, 45, dilation, seqLength, 10, disabledisturb, step=step, stack=False)
-disturbs3, states3, targetDisturbs3, targetStates3 = Utils.MakeData(60000, 35, dilation, seqLength, 4, disabledisturb, step=step, stack=False)
+disturbs2, states2, targetDisturbs2, targetStates2 = Utils.MakeData(60000, 45, dilation, seqLength, 10, disabledisturb, step=step, stack=False, seed=2)
+disturbs3, states3, targetDisturbs3, targetStates3 = Utils.MakeData(60000, 35, dilation, seqLength, 4, disabledisturb, step=step, stack=False, seed=5)
 
 disturbs = numpy.concatenate((disturbs, disturbs2, disturbs3))
 states = numpy.concatenate((states, states2,states3))
