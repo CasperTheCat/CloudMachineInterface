@@ -6,13 +6,15 @@ import numpy
 import math
 import unicodedata
 import re
+import pickle
 import matplotlib
 import matplotlib.pyplot
 import pandas
+import os
 
-dilation = 1
-seqLength = 5 * 12
-step = 1
+dilation = 60
+seqLength = 5#5 * 12
+step = 5
 offset = 30
 Weights = [1, 1, 1, 1, 1, 1, 0.01, 0.100]
 StateOnlyWeight = [0, 0, 0, 0, 1, 1, 1, 0.1]
@@ -24,7 +26,7 @@ def TailState(x, minTail =100):
     nSamples = x.shape[1]
     xt = numpy.copy(x).transpose()
 
-    nTailLength = max(nSamples // 100, minTail)
+    nTailLength = minTail#max(nSamples // 100, minTail)
     
 
     for i in range(nTailLength):
@@ -99,7 +101,30 @@ def window_stack(a, stepsize=1, width=3, nummax=None):
     #return numpy.hstack( a[i:1 + i-width or None:stepsize] for i in range(0, width))
 
 
+def MakeCacheName(x,y, td, width, modRange, disable, boilerPower=10000, tankageLimits=(5,75,80), initWaterTemp=30, initCapacity=35, step=1, stack=True, seed=0):
+    p1 = "{}_{}_{}_{}".format(x,y,td,width)
+    p2 = "T" if disable else "F"
+    p3 = "{}_{}.{}.{}_{}_{}".format(boilerPower, tankageLimits[0], tankageLimits[1], tankageLimits[2], initWaterTemp, initCapacity)
+    p4 = "S{}_RNG{}".format(step,seed)
+    p5 = "T" if stack else "F"
+
+    return "_".join([p1,p2,p3,p4,p5])
+
+
 def MakeData(x,y, td, width, modRange, disable, boilerPower=10000, tankageLimits=(5,75,80), initWaterTemp=30, initCapacity=35, step=1, stack=True, seed=0):
+
+    cachename = MakeCacheName(x,y,td,width,modRange,disable,boilerPower,tankageLimits,initWaterTemp,initCapacity,step,stack,seed)
+    print(cachename)
+
+    #Cache
+    if os.path.exists(cachename):
+        print("Using Cache")
+        with open(cachename, "rb+") as f:
+            return pickle.load(f)
+            #return a,b,c,d
+
+
+
     simulator = CSimulator(td, 600000)
     #simulator = CSimulator(1, 200000)
 
@@ -140,7 +165,7 @@ def MakeData(x,y, td, width, modRange, disable, boilerPower=10000, tankageLimits
         pastTickTemp = boiler.GetBoilerWaterTemp()
 
         # Simulate `step` seconds
-        simulator.SimulateNTicks(step * 10, 1/10)
+        simulator.SimulateNTicks(step * 100, 1/100)
 
         if(not disable):
             mod = math.sin(i * 0.005) * modRange #** 640 * 30
@@ -219,9 +244,14 @@ def MakeData(x,y, td, width, modRange, disable, boilerPower=10000, tankageLimits
         disturbStacked = window_stack(disturbs, stepsize=1, width=width)
         stateStacked = window_stack(states, stepsize=1, width=width)
 
+        with open(cachename, "wb+") as f:
+            pickle.dump((disturbStacked, stateStacked, disturbs[width:], states[width:]), f)
+
         return disturbStacked, stateStacked, disturbs[width:], states[width:]
 
     else:
+        with open(cachename, "wb+") as f:
+            pickle.dump((disturbs, states, disturbs[width:], states[width:]), f)
         #return disturbs[:-width], states[:-width], disturbs[width:], states[width:]
         return disturbs, states, disturbs[width:], states[width:]
 

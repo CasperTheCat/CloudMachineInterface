@@ -148,8 +148,6 @@ for i in range(Utils.seqLength):
     
     # history[2].append(boiler.boilerPercent)
 
-
-
     print("step {}".format(i))
 
 history = numpy.array(history)
@@ -175,8 +173,8 @@ try:
         # If < EPS
         delta = forecast - boiler.GetBoilerWaterTemp()
 
-        # if delta < boiler.GetBoilerWaterTemp() * 0.05:
-        #     delta = 0
+        if delta < boiler.GetBoilerWaterTemp() * 0.05:
+            delta = 0
 
 
         #preds.append(forecast)

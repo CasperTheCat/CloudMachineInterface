@@ -29,6 +29,8 @@ disturbs3, states3, targetDisturbs3, targetStates3 = Utils.MakeData(allShape, 35
 disturbs4, states4, targetDisturbs4, targetStates4 = Utils.MakeData(allShape, 85, dilation, seqLength, 18, disabledisturb, step=step, stack=False, seed=8)
 disturbs5, states5, targetDisturbs5, targetStates5 = Utils.MakeData(allShape, 95, dilation, seqLength, 7, disabledisturb, step=step, stack=False, seed=11)
 
+print(disturbs.shape)
+
 disturbs = numpy.concatenate((disturbs, disturbs2, disturbs3, disturbs4, disturbs5))
 states = numpy.concatenate((states, states2, states3, states4, states5))
 # targetDisturbs = numpy.concatenate((targetDisturbs, targetDisturbs2, targetDisturbs3))
@@ -64,7 +66,7 @@ v2 = v2t.transpose()
 
 #l1 = states.transpose()
 l1 = Utils.TailState(l1, offset)
-l2 = Utils.TailState(l2, offset)[4]
+l2 = Utils.TailState(l2, offset)
 v2 = Utils.TailState(v2, offset)
 
 # Retranspose
@@ -77,7 +79,7 @@ v2t = v2.transpose()
 
 markovs = disturbs.shape[0] // 120
 minmcs = 6
-markovs = 12
+markovs = 29
 
 bestIndex = 0
 bestScore = 1 # Unstable above 1
@@ -168,6 +170,7 @@ print(len(l1t))
 
 pairwiseErrors = []
 preds = []
+xhat = [0]
 
 for i in range(offset, offset + backstep):
     #itu = numpy.expand_dims(inFeed[i], 0)
@@ -199,11 +202,14 @@ for i in range(offset, offset + backstep):
     #     U=Utils.TailState(v2t[i:(i) + seqLength], 10)
     # )
     
-    t, yo, xo = control.forced_response(
+    t, yo, xhat = control.forced_response(
         asb,
         numpy.arange(0, len(l1t[i:(i) + seqLength])) * step,
-        U=v2t[i:(i) + seqLength].transpose()
+        U=v2t[i:(i) + seqLength].transpose(),
+        X0=xhat[-1]
     )
+
+    xhat = numpy.array(xhat).transpose()
 
     # print(v2t[i:(i) + seqLength].shape)
     # print(yo.shape)
@@ -215,15 +221,17 @@ for i in range(offset, offset + backstep):
     # #print(yo)
     indexer = -1
     ls = v2t[i:(i) + seqLength]
-    tStat = ls[indexer][4]
+    tStat = ls[indexer]
     forecast = yo.transpose()[indexer]
     #forecast = yo.transpose()[seqLength - 1]
-    print(i, forecast, tStat)
+    #print(i, forecast, tStat)
 
-    preds.append(forecast)
+    preds.append(forecast[4])
 
     delta = forecast - tStat
-    delta = delta * Utils.StateOnlyWeight[4]
+    delta = delta * Utils.StateOnlyWeight
+
+    print(i, numpy.sum(delta))
 
     pairwiseErrors.append(delta)
 
@@ -233,9 +241,9 @@ pairwiseErrors = Utils.MakeAccError(pairwiseErrors, flip=Utils.bFlip)
 
 
 
-dataP = v2t[seqLength + offset:].transpose()[4]
+dataP = v2t[seqLength + offset:].transpose()[4] * Utils.StateOnlyWeight[4]
 #dataT = inFeed.transpose()[5]
-dataT = numpy.array(preds)
+dataT = numpy.array(preds) * Utils.StateOnlyWeight[4]
 dataS = pairwiseErrorsAcc.transpose()
 dataX = pairwiseErrors.transpose()
 print(dataP.flatten().squeeze().shape)
