@@ -12,10 +12,10 @@ import matplotlib.pyplot
 import pandas
 import os
 
-dilation = 60
-seqLength = 5#5 * 12
+dilation = 1
+seqLength = 300#5 * 12
 step = 5
-offset = 30
+offset = 60
 Weights = [1, 1, 1, 1, 1, 1, 0.01, 0.100]
 StateOnlyWeight = [0, 0, 0, 0, 1, 1, 1, 0.1]
 bFlip = False
@@ -195,7 +195,7 @@ def MakeData(x,y, td, width, modRange, disable, boilerPower=10000, tankageLimits
         # State Power
         stateInformation[1].append(boiler.boilerPerformance)
         
-        stateInformation[2].append(boiler.boilerPercent)
+        stateInformation[2].append(boiler.boilerPercent * 100)
 
         # State Temperature
         #stateInformation[2].append(boiler.GetBoilerWaterTemp())

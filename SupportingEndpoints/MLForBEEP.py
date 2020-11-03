@@ -16,6 +16,164 @@ import sys
 import Utils
 
 
+#!/usr/bin/env python3
+
+#import control
+#import modred
+import numpy as np
+import tensorflow as tf
+from tensorflow import keras
+from tensorflow.keras import layers
+import Utils
+from ProcessSimulation import CSimulator
+from ProcessSimulation import AActor, ABoiler, ABoilerController
+import time
+import matplotlib
+import matplotlib.pyplot
+#matplotlib.interactive(True)
+#matplotlib.use("TkAgg") 
+import numpy
+import math
+
+dilation = 2
+seqLength = 60
+#seqLength = 60 * 24
+
+disabledisturb = True
+
+# #ins, outs, tests, rawins = MakeData(30000,55,dilation, seqLength, 35, disabledisturb)
+# #yins, youts, ytest, rawyins = MakeData(15000,45,dilation, seqLength, 21, disabledisturb)
+
+# ins, outs, tests, rawins = MakeData(10000,55,dilation, seqLength, 35, disabledisturb)
+# dins, douts, dtests, drawins = MakeData(10000,55,dilation / 20, seqLength, 35, disabledisturb)
+# yins, youts, ytest, rawyins = MakeData(5000,85,dilation, seqLength, 21, disabledisturb and False)
+
+
+# tests = numpy.concatenate((tests, dtests))
+# rawins = numpy.concatenate((rawins, drawins))
+
+# print(ins.shape)
+# print(rawins.shape)
+
+step = 60
+
+# 60k seconds, measuring every minute
+disturbs, states, targetDisturbs, targetStates = Utils.MakeData(60000, 55, dilation, seqLength, 10, disabledisturb and False, step=step, seed=0)
+disturbs2, states2, targetDisturbs2, targetStates2 = Utils.MakeData(60000, 45, dilation, seqLength, 20, disabledisturb, step=step, seed=1)
+disturbs3, states3, targetDisturbs3, targetStates3 = Utils.MakeData(60000, 35, dilation, seqLength, 4, disabledisturb, step=step, seed=12)
+
+disturbs = numpy.concatenate((disturbs, disturbs2, disturbs3))
+states = numpy.concatenate((states, states2,states3))
+targetDisturbs = numpy.concatenate((targetDisturbs, targetDisturbs2, targetDisturbs3))
+targetStates = numpy.concatenate((targetStates, targetStates2, targetStates3))
+
+val_disturbs, val_states, val_targetDisturbs, val_targetStates = Utils.MakeData(60000, 75, dilation, seqLength, 2, False, step=60)
+
+
+#ins, outs, tests, rawins = MakeData(3000,55,dilation, seqLength, 35, disturb)
+#yins, youts, ytest, rawyins = MakeData(1000,45,dilation, seqLength, 21, disturb)
+
+
+forecastmodel = keras.Sequential(
+    [
+        #layers.Embedding(input_shape=(100, 3), output_dim=128),
+        layers.Input(shape=(seqLength, disturbs.shape[2])),
+        #layers.LSTM(1024, return_sequences=True),
+        #layers.Dropout(0.2),
+        #layers.LSTM(1024, return_sequences=True),
+        #layers.GRU(64, return_sequences=True),
+        #layers.LSTM(128, return_sequences=True),
+        layers.LSTM(256, return_sequences=False),
+        #layers.LSTM(64, return_sequences=True),
+        #layers.LSTM(64, return_sequences=True),
+        
+        layers.Dense(256, activation='relu'),
+        layers.Dense(disturbs.shape[2])
+    ]
+)
+# model.add(layers.Embedding(input_dim=1000, output_dim=64))
+# model.add(layers.LSTM(128))
+# model.add(layers.LSTM(128))
+# model.add(layers.Dense(10))
+
+predmodel = keras.Sequential(
+    [
+        #layers.Embedding(input_shape=(100, 3), output_dim=128),
+        layers.Input(shape=(seqLength, states.shape[2] + disturbs.shape[2])),
+        #layers.LSTM(1024, return_sequences=True),
+        #layers.Dropout(0.2),
+        #layers.LSTM(1024, return_sequences=True),
+#        layers.LSTM(256, return_sequences=False),
+        layers.LSTM(256, return_sequences=False),
+        
+
+
+        layers.Dense(256, activation='relu'),
+        layers.Dense(states.shape[2])
+    ]
+)
+
+forecastmodel.compile(
+    #loss=keras.losses.SparseCategoricalCrossentropy(from_logits=True),
+    loss="mse",
+    optimizer=keras.optimizers.Adam(learning_rate=0.001),
+    #metrics=["accuracy"],
+)
+
+predmodel.compile(
+    #loss=keras.losses.SparseCategoricalCrossentropy(from_logits=True),
+    loss="mse",
+    optimizer=keras.optimizers.Adam(learning_rate=0.001),
+    #metrics=["accuracy"],
+)
+
+
+predmodel.summary()
+forecastmodel.summary()
+
+epochlies = 1
+
+#predmodel.fit(ins, outs, validation_data=(yins, youts), batch_size=16, epochs=epochlies)
+
+print(disturbs[1][-1])
+print(targetDisturbs[0])
+print(len(disturbs), len(targetDisturbs))
+
+assert(disturbs[1][-1][0] == targetDisturbs[0][0])
+assert(disturbs[1][-1][1] == targetDisturbs[0][1])
+assert(disturbs[1][-1][2] == targetDisturbs[0][2])
+assert(len(disturbs) == len(targetDisturbs))
+
+inFeed = numpy.concatenate((disturbs, states), axis=2)
+inVal = numpy.concatenate((val_disturbs, val_states), axis=2)
+
+print(inVal.shape)
+print(inFeed.shape)
+print(states.shape[2] + disturbs.shape[2])
+
+print(inFeed[0][-1])
+print(targetStates[0])
+
+forecastmodel.fit(disturbs, targetDisturbs, validation_data=(val_disturbs, val_targetDisturbs), batch_size=16, epochs=epochlies)
+predmodel.fit(inFeed, targetStates, validation_data=(inVal, val_targetStates), batch_size=16, epochs=epochlies)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 simulator = CSimulator(1, 600000)
 #simulator = CSimulator(1, 200000)
@@ -133,9 +291,6 @@ data5 = []
 #### SPSH
 model = None
 
-with open("Pickle.era", "rb+") as f:
-    model = pickle.load(f)
-
 
 #input("Press Any Key")
 
@@ -215,17 +370,35 @@ try:
             ]
 
             if x == 0:
-                #print(history[arrLength - (Utils.seqLength + backOffset):arrLength - backOffset].transpose().shape)
+                ytest = numpy.expand_dims(history, 0)
 
-                # Predict next step
-                # Grab data *backOffset* from the end
+                #predtime = tf.squeeze(preds, 0)[0].numpy()
+                #yo.append(predtime)
+                #print(tf.squeeze(preds, 0)[-1,0].numpy())
 
-                t, yo, xo = control.forced_response(
-                        model,
-                        numpy.arange(0, Utils.seqLength) * step,
-                        U=history[arrLength - (Utils.seqLength + backOffset):arrLength - backOffset].transpose(),
-                        X0=xhat
-                    )
+                ## Next Timestep
+                forecast = forecastmodel.predict(ytest)
+                forebar = tf.squeeze(forecast, 0).numpy()
+                distPreds.append(forebar)
+
+                # don't predict the state here
+                preds = predmodel.predict(ystate)
+                forepred = tf.squeeze(preds, 0).numpy()
+                statePreds.append(forepred)
+
+                #print(preds)
+
+                preds = [numpy.concatenate((forecast[0], preds[0]))]
+
+                #print(preds)
+
+                #lElement = inputarr[-1]
+                # print()
+                # print(forebar)
+                # print(rawyins[i+1])
+                #sys.exit()
+                inputarr = numpy.concatenate((inputarr[1:], forecast))
+                internalState = numpy.concatenate((internalState[1:], preds))
                 
                 # Save this for the next iteration
                 xhat = xo.transpose()[-1]
