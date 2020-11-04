@@ -64,7 +64,7 @@ solvedSize = resolution / TargetDPI
 fig, ((ax,ax2)) = matplotlib.pyplot.subplots(2,1,sharex=True, dpi=TargetDPI, figsize=solvedSize)
 #ax = matplotlib.pyplot.axes()
 #ax2 = ax.twin()
-dra, = ax.plot([],[])
+dra, = ax.plot([],[], color="red")
 dra.set_label("Boiler Temperature")
 two, = ax.plot([],[])
 two.set_label("1")
@@ -154,8 +154,7 @@ for i in range(historyLength):
         boiler.waterOutRatePerSecond,
         boiler.GetBoilerWaterTemp(),
         boiler.waterVolCurrent,
-        boiler.boilerPerformance,
-        boiler.boilerPercent
+        boiler.boilerPerformance * boiler.boilerPercent
     ]
     history.append(numpy.array(hist))
 
@@ -210,8 +209,7 @@ try:
                 boiler.waterOutRatePerSecond,
                 boiler.GetBoilerWaterTemp(),
                 boiler.waterVolCurrent,
-                boiler.boilerPerformance,
-                boiler.boilerPercent
+                boiler.boilerPerformance * boiler.boilerPercent
             ]
 
             if x == 0:
@@ -303,10 +301,10 @@ try:
             #print(dataP.shape)
             #print(localHistory.shape)
             predDataP = numpy.concatenate( [dataP, localHistory.transpose()[4]] )
-            print("\n\n")
-            print(history[-1])
-            print(localHistory[-1])
-            print(boiler.GetBoilerWaterTemp())
+            # print("\n\n")
+            # print(history[-1])
+            # print(localHistory[-1])
+            # print(boiler.GetBoilerWaterTemp())
             dra2.set_xdata(numpy.arange(0, len(predDataP)) * simulator.timeDilation)
             dra2.set_ydata(predDataP)
             # two2.set_xdata(numpy.arange(0, len(dataP)) * simulator.timeDilation)

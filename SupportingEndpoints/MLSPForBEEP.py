@@ -59,117 +59,117 @@ disabledisturb = False
 
 # 60k seconds, measuring every minute
 # 60k seconds, measuring every minute
-disturbs, states, targetDisturbs, targetStates = Utils.MakeData(allShape, 55, dilation, seqLength, 10, disabledisturb and False, step=step, stack=True, seed=0)
-disturbs2, states2, targetDisturbs2, targetStates2 = Utils.MakeData(allShape, 45, dilation, seqLength, 10, disabledisturb, step=step, stack=True, seed=2)
-disturbs3, states3, targetDisturbs3, targetStates3 = Utils.MakeData(allShape, 35, dilation, seqLength, 4, disabledisturb, step=step, stack=True, seed=5)
-disturbs4, states4, targetDisturbs4, targetStates4 = Utils.MakeData(allShape, 85, dilation, seqLength, 18, disabledisturb, step=step, stack=True, seed=8)
-disturbs5, states5, targetDisturbs5, targetStates5 = Utils.MakeData(allShape, 95, dilation, seqLength, 7, disabledisturb, step=step, stack=True, seed=11)
+# disturbs, states, targetDisturbs, targetStates = Utils.MakeData(allShape, 55, dilation, seqLength, 10, disabledisturb and False, step=step, stack=True, seed=0)
+# disturbs2, states2, targetDisturbs2, targetStates2 = Utils.MakeData(allShape, 45, dilation, seqLength, 10, disabledisturb, step=step, stack=True, seed=2)
+# disturbs3, states3, targetDisturbs3, targetStates3 = Utils.MakeData(allShape, 35, dilation, seqLength, 4, disabledisturb, step=step, stack=True, seed=5)
+# disturbs4, states4, targetDisturbs4, targetStates4 = Utils.MakeData(allShape, 85, dilation, seqLength, 18, disabledisturb, step=step, stack=True, seed=8)
+# disturbs5, states5, targetDisturbs5, targetStates5 = Utils.MakeData(allShape, 95, dilation, seqLength, 7, disabledisturb, step=step, stack=True, seed=11)
 
-disturbs = numpy.concatenate((disturbs, disturbs2, disturbs3, disturbs4, disturbs5))
-states = numpy.concatenate((states, states2, states3, states4, states5))
-targetDisturbs = numpy.concatenate((targetDisturbs, targetDisturbs2, targetDisturbs3, targetDisturbs4, targetDisturbs5))
-targetStates = numpy.concatenate((targetStates, targetStates2, targetStates3, targetStates4, targetStates5))
+# disturbs = numpy.concatenate((disturbs, disturbs2, disturbs3, disturbs4, disturbs5))
+# states = numpy.concatenate((states, states2, states3, states4, states5))
+# targetDisturbs = numpy.concatenate((targetDisturbs, targetDisturbs2, targetDisturbs3, targetDisturbs4, targetDisturbs5))
+# targetStates = numpy.concatenate((targetStates, targetStates2, targetStates3, targetStates4, targetStates5))
 
-val_disturbs, val_states, val_targetDisturbs, val_targetStates = Utils.MakeData(60000, 75, dilation, seqLength, 2, True, step=step)
-
-
-#ins, outs, tests, rawins = MakeData(3000,55,dilation, seqLength, 35, disturb)
-#yins, youts, ytest, rawyins = MakeData(1000,45,dilation, seqLength, 21, disturb)
+# val_disturbs, val_states, val_targetDisturbs, val_targetStates = Utils.MakeData(60000, 75, dilation, seqLength, 2, True, step=step)
 
 
-forecastmodel = keras.Sequential(
-    [
-        #layers.Embedding(input_shape=(100, 3), output_dim=128),
-        layers.Input(shape=(seqLength, disturbs.shape[2])),
-        layers.LSTM(1024, return_sequences=True),
-        layers.Dropout(0.2),
-        layers.LSTM(1024, return_sequences=True),
-        #layers.GRU(64, return_sequences=True),
-        #layers.LSTM(128, return_sequences=True),
-        layers.LSTM(1024, return_sequences=False),
-        #layers.LSTM(64, return_sequences=True),
-        #layers.LSTM(64, return_sequences=True),
+# #ins, outs, tests, rawins = MakeData(3000,55,dilation, seqLength, 35, disturb)
+# #yins, youts, ytest, rawyins = MakeData(1000,45,dilation, seqLength, 21, disturb)
+
+
+# forecastmodel = keras.Sequential(
+#     [
+#         #layers.Embedding(input_shape=(100, 3), output_dim=128),
+#         layers.Input(shape=(seqLength, disturbs.shape[2])),
+#         layers.LSTM(1024, return_sequences=True),
+#         layers.Dropout(0.2),
+#         layers.LSTM(1024, return_sequences=True),
+#         #layers.GRU(64, return_sequences=True),
+#         #layers.LSTM(128, return_sequences=True),
+#         layers.LSTM(1024, return_sequences=False),
+#         #layers.LSTM(64, return_sequences=True),
+#         #layers.LSTM(64, return_sequences=True),
         
-        layers.Dense(256, activation='relu'),
-        layers.Dense(disturbs.shape[2])
-    ]
-)
-# model.add(layers.Embedding(input_dim=1000, output_dim=64))
-# model.add(layers.LSTM(128))
-# model.add(layers.LSTM(128))
-# model.add(layers.Dense(10))
+#         layers.Dense(256, activation='relu'),
+#         layers.Dense(disturbs.shape[2])
+#     ]
+# )
+# # model.add(layers.Embedding(input_dim=1000, output_dim=64))
+# # model.add(layers.LSTM(128))
+# # model.add(layers.LSTM(128))
+# # model.add(layers.Dense(10))
 
-predmodel = keras.Sequential(
-    [
-        #layers.Embedding(input_shape=(100, 3), output_dim=128),
-        layers.Input(shape=(seqLength, states.shape[2] + disturbs.shape[2])),
-        layers.LSTM(1024, return_sequences=True),
-        layers.Dropout(0.1),
-        #layers.LSTM(1024, return_sequences=True),
-        #layers.GRU(64, return_sequences=True),
-        #layers.LSTM(128, return_sequences=True),
-        layers.LSTM(1024, return_sequences=False),
-        layers.Dropout(0.1),
-        #layers.LSTM(64, return_sequences=True),
-        #layers.LSTM(64, return_sequences=True),
+# predmodel = keras.Sequential(
+#     [
+#         #layers.Embedding(input_shape=(100, 3), output_dim=128),
+#         layers.Input(shape=(seqLength, states.shape[2] + disturbs.shape[2])),
+#         layers.LSTM(1024, return_sequences=True),
+#         layers.Dropout(0.1),
+#         #layers.LSTM(1024, return_sequences=True),
+#         #layers.GRU(64, return_sequences=True),
+#         #layers.LSTM(128, return_sequences=True),
+#         layers.LSTM(1024, return_sequences=False),
+#         layers.Dropout(0.1),
+#         #layers.LSTM(64, return_sequences=True),
+#         #layers.LSTM(64, return_sequences=True),
         
-        layers.Dense(1024, activation='relu'),
-        layers.Dense(states.shape[2]+ disturbs.shape[2])
-    ]
-)
+#         layers.Dense(1024, activation='relu'),
+#         layers.Dense(states.shape[2]+ disturbs.shape[2])
+#     ]
+# )
 
-forecastmodel.compile(
-    #loss=keras.losses.SparseCategoricalCrossentropy(from_logits=True),
-    loss="mse",
-    optimizer=keras.optimizers.Adam(learning_rate=0.001),
-    #metrics=["accuracy"],
-)
+# forecastmodel.compile(
+#     #loss=keras.losses.SparseCategoricalCrossentropy(from_logits=True),
+#     loss="mse",
+#     optimizer=keras.optimizers.Adam(learning_rate=0.001),
+#     #metrics=["accuracy"],
+# )
 
-predmodel.compile(
-    #loss=keras.losses.SparseCategoricalCrossentropy(from_logits=True),
-    loss="mse",
-    optimizer=keras.optimizers.Adam(learning_rate=0.001),
-    #metrics=["accuracy"],
-)
+# predmodel.compile(
+#     #loss=keras.losses.SparseCategoricalCrossentropy(from_logits=True),
+#     loss="mse",
+#     optimizer=keras.optimizers.Adam(learning_rate=0.001),
+#     #metrics=["accuracy"],
+# )
 
 
-predmodel.summary()
-forecastmodel.summary()
+# predmodel.summary()
+# forecastmodel.summary()
 
-epochlies = 3
+# epochlies = 3
 
-#predmodel.fit(ins, outs, validation_data=(yins, youts), batch_size=16, epochs=epochlies)
+# #predmodel.fit(ins, outs, validation_data=(yins, youts), batch_size=16, epochs=epochlies)
 
-print(disturbs[1][-1])
-print(targetDisturbs[0])
-print(len(disturbs), len(targetDisturbs))
+# print(disturbs[1][-1])
+# print(targetDisturbs[0])
+# print(len(disturbs), len(targetDisturbs))
 
-assert(disturbs[1][-1][0] == targetDisturbs[0][0])
-assert(disturbs[1][-1][1] == targetDisturbs[0][1])
-assert(disturbs[1][-1][2] == targetDisturbs[0][2])
-assert(len(disturbs) == len(targetDisturbs))
+# assert(disturbs[1][-1][0] == targetDisturbs[0][0])
+# assert(disturbs[1][-1][1] == targetDisturbs[0][1])
+# assert(disturbs[1][-1][2] == targetDisturbs[0][2])
+# assert(len(disturbs) == len(targetDisturbs))
 
-inFeed = numpy.concatenate((disturbs, states), axis=2)
-inFeedStates= numpy.concatenate((targetDisturbs, targetStates), axis=1)
-inVal = numpy.concatenate((val_disturbs, val_states), axis=2)
-inValStates = numpy.concatenate((val_targetDisturbs, val_targetStates), axis=1)
+# inFeed = numpy.concatenate((disturbs, states), axis=2)
+# inFeedStates= numpy.concatenate((targetDisturbs, targetStates), axis=1)
+# inVal = numpy.concatenate((val_disturbs, val_states), axis=2)
+# inValStates = numpy.concatenate((val_targetDisturbs, val_targetStates), axis=1)
 
-print(inVal.shape)
-print(inFeed.shape)
-print(states.shape[2] + disturbs.shape[2])
+# print(inVal.shape)
+# print(inFeed.shape)
+# print(states.shape[2] + disturbs.shape[2])
 
-print(inFeed[0][-1])
-print(targetStates[0])
+# print(inFeed[0][-1])
+# print(targetStates[0])
 
 #forecastmodel.fit(disturbs, targetDisturbs, validation_data=(val_disturbs, val_targetDisturbs), batch_size=16, epochs=epochlies)
-predmodel.fit(inFeed, inFeedStates, validation_data=(inVal, inValStates), batch_size=8, epochs=epochlies)
-predmodel.save("model.tensorflow")
+#predmodel.fit(inFeed, inFeedStates, validation_data=(inVal, inValStates), batch_size=8, epochs=epochlies)
+
+predmodel = keras.models.load_model("model.tensorflow")
 
 
 
 
 
-exit()
 
 
 
