@@ -110,7 +110,7 @@ def GetFitness(x):
 def CreateOKIDERA(l1, l2, i, step, dilation):
     kalman = modred.OKID(l1, l2, i)
     era = modred.ERA()
-    a,b,c = era.compute_model(kalman, 7, 7)
+    a,b,c = era.compute_model(kalman, 70, 70)
     #a,b,c = modred.era.compute_ERA_model(kalman, 1500)
 
     # print("Mats")
@@ -157,7 +157,7 @@ with open("Pickle.era", "wb+") as f:
     pickle.dump(asb, f)
 
 
-
+exit()
 ##### ##### ########## ##### #####
 ## Build History
 ##

@@ -15,26 +15,6 @@ import math
 import sys
 import Utils
 
-
-#!/usr/bin/env python3
-
-#import control
-#import modred
-import numpy as np
-import tensorflow as tf
-from tensorflow import keras
-from tensorflow.keras import layers
-import Utils
-from ProcessSimulation import CSimulator
-from ProcessSimulation import AActor, ABoiler, ABoilerController
-import time
-import matplotlib
-import matplotlib.pyplot
-#matplotlib.interactive(True)
-#matplotlib.use("TkAgg") 
-import numpy
-import math
-
 dilation = Utils.dilation
 seqLength = Utils.seqLength
 step = Utils.step
@@ -163,14 +143,6 @@ disabledisturb = False
 
 #forecastmodel.fit(disturbs, targetDisturbs, validation_data=(val_disturbs, val_targetDisturbs), batch_size=16, epochs=epochlies)
 #predmodel.fit(inFeed, inFeedStates, validation_data=(inVal, inValStates), batch_size=8, epochs=epochlies)
-
-predmodel = keras.models.load_model("model.tensorflow")
-
-
-
-
-
-
 
 
 
