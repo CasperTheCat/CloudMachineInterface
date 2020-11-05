@@ -375,19 +375,21 @@ try:
             ]
 
             if x == 0:
-                ytest = numpy.expand_dims(history[arrLength - (Utils.seqLength + backOffset):arrLength - backOffset], 0)
+                lastStep = history[-1]
+                boilerTemp = lastStep[4]
+                waterIn = lastStep[0] * step
+                waterTemp = lastStep[1]
+                waterVol = lastStep[5]
 
-                ## Next Timestep
-                forecast = predmodel.predict(ytest)
-                forebar = tf.squeeze(forecast, 0).numpy()
-                #distPreds.append(forebar)
+                boilerTemp = (waterVol * boilerTemp + waterTemp * waterIn) / (waterIn + waterVol)
+                boilerTemp = boilerTemp + ((lastStep[6] * step) / (4200 * waterVol))
 
-                #preds = [numpy.concatenate((forecast[0], preds[0]))]
-                
+                compVal = numpy.copy(lastStep)
+                compVal[4] = boilerTemp
 
 
                 # Prep for the loop
-                localHistory[0] = forebar
+                localHistory[0] = compVal
 
                 for sample in range(1, backOffset):
 
@@ -405,14 +407,20 @@ try:
                         lh = localHistory[sample-Utils.seqLength:sample]
                     #print(lh.shape)
                     
-                    ytest = numpy.expand_dims(lh, 0)
+                    lastStep = lh[-1]
+                    boilerTemp = lastStep[4]
+                    waterIn = lastStep[0] * step
+                    waterTemp = lastStep[1]
+                    waterVol = lastStep[5]
 
-                    ## Next Timestep
-                    forecast = predmodel.predict(ytest)
-                    forebar = tf.squeeze(forecast, 0).numpy()
+                    boilerTemp = (waterVol * boilerTemp + waterTemp * waterIn) / (waterIn + waterVol)
+                    boilerTemp = boilerTemp + ((lastStep[6] * step) / (4200 * waterVol))
+
+                    compVal = numpy.copy(lastStep)
+                    compVal[4] = boilerTemp
 
                     #localXhat = xo.transpose()[-1]
-                    localHistory[sample] = forebar
+                    localHistory[sample] = compVal
 
 
                 #forecast = yo.transpose()[-1]
