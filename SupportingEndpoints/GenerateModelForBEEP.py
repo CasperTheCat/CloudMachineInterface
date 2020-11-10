@@ -79,7 +79,7 @@ v2t = v2.transpose()
 
 markovs = disturbs.shape[0] // 120
 minmcs = 6
-markovs = 65
+markovs = 25#66
 
 bestIndex = 0
 bestScore = 1 # Unstable above 1
@@ -108,13 +108,15 @@ def GetFitness(x):
 
 
 def CreateOKIDERA(l1, l2, i, step, dilation):
+    #l1 = numpy.flip(l1, 1) 
+    #l2 = numpy.flip(l2, 1) 
     kalman = modred.OKID(l1, l2, i)
     era = modred.ERA()
-    a,b,c = era.compute_model(kalman, 70, 70)
+    a,b,c = era.compute_model(kalman, 7, 7)
     #a,b,c = modred.era.compute_ERA_model(kalman, 1500)
 
     # print("Mats")
-    # print(a)
+    #print(a)
     #print(b)
     # print(c)
     # print()

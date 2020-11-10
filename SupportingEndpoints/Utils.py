@@ -84,9 +84,8 @@ def slugify(value):
 
 
 def TimeNow():
-    print("WEEEEEE")
-
-    
+    #print("WEEEEEE")
+   
     return slugify(datetime.datetime.now().isoformat())
 
 
@@ -292,14 +291,14 @@ def MakeData(x,y, td, width, modRange, disable, boilerPower=10000, tankageLimits
 
     # return rnins, nouts, ninstest, nins[width:]
 
-ran = numpy.arange(7)
-ranStack = window_stack(ran, stepsize=1, width=3)
-rO = ran[3:]
+# ran = numpy.arange(7)
+# ranStack = window_stack(ran, stepsize=1, width=3)
+# rO = ran[3:]
 
-print(ranStack)
-print(rO)
+# print(ranStack)
+# print(rO)
 
-print(TimeNow())
+# print(TimeNow())
 
 
 def MakeScreen(dataP, dataT, dataS, dataX, maxY=240, dataPLabel = "Simulated Truth", dataTLabel = "Modelled Value", dataSLabel = "Signed Error", dataXLabel = "Abs. Error"):  

@@ -275,39 +275,70 @@ class ABEEP():
             pass
 
 
-def MakeLiveMap(maxY, solvedSize, TargetDPI, iTime, targetColour):
+def MakeLiveMap(maxY, solvedSize, TargetDPI, iTime, targetColour, labelOverrides = None, label2Overrides = None):
     fig, ((ax,ax2)) = matplotlib.pyplot.subplots(2,1,sharex=True, dpi=TargetDPI, figsize=solvedSize)
     #ax = matplotlib.pyplot.axes()
     #ax2 = ax.twin()
-    dra, = ax.plot([],[], color="red")
-    dra.set_label("Boiler Temperature")
+    dra, = ax.plot([],[], color="red")    
     two, = ax.plot([],[])
-    two.set_label("1")
     three, = ax.plot([],[], color="green")
-    three.set_label("2")
     four, = ax.plot([],[], linestyle="--")#, color="magenta")
-    four.set_label("3")
     warn, = ax.plot([],[], linestyle="dotted")#, color="purple")
-    warn.set_label("Single Step Error")
     warnfar, = ax.plot([],[], linestyle="dotted", color="purple")
-    warnfar.set_label("Far Step Error")
     warndiff, = ax.plot([],[], linestyle="dotted", color="magenta")
-    warndiff.set_label("Diff. Error")
 
     dra2, = ax2.plot([],[], color="red")
-    dra2.set_label("Boiler Temperature")
     two2, = ax2.plot([],[])
-    two2.set_label("1")
     three2, = ax2.plot([],[], color="green")
-    three2.set_label("2")
     four2, = ax2.plot([],[], linestyle="--")
-    four2.set_label("3")
     warn2, = ax2.plot([],[], linestyle="dotted")
-    warn2.set_label("4")
 
     ax.yaxis.grid(True, color='white')
     ax2.yaxis.grid(True, color='white')
 
+    if labelOverrides:
+        if len(labelOverrides) > 0:
+            dra.set_label(labelOverrides[0])
+        if len(labelOverrides) > 1:
+            two.set_label(labelOverrides[1])
+        if len(labelOverrides) > 2:
+            three.set_label(labelOverrides[2])
+        if len(labelOverrides) > 3:
+            four.set_label(labelOverrides[3])
+        if len(labelOverrides) > 4:
+            warn.set_label(labelOverrides[4])
+        if len(labelOverrides) > 5:
+            warnfar.set_label(labelOverrides[5])
+        if len(labelOverrides) > 6:
+            warndiff.set_label(labelOverrides[6])
+
+        # If we have overrides for 2, use
+        if label2Overrides:
+            if len(label2Overrides) > 0:
+                dra2.set_label(label2Overrides[0])
+            if len(label2Overrides) > 1:
+                two2.set_label(label2Overrides[1])
+            if len(label2Overrides) > 2:
+                three2.set_label(label2Overrides[2])
+            if len(label2Overrides) > 3:
+                four2.set_label(label2Overrides[3])
+            if len(label2Overrides) > 4:
+                warn2.set_label(label2Overrides[4])
+        else:
+            if len(labelOverrides) > 0:
+                dra2.set_label(labelOverrides[0])
+            if len(labelOverrides) > 1:
+                two2.set_label(labelOverrides[1])
+            if len(labelOverrides) > 2:
+                three2.set_label(labelOverrides[2])
+            if len(labelOverrides) > 3:
+                four2.set_label(labelOverrides[3])
+            if len(labelOverrides) > 4:
+                warn2.set_label(labelOverrides[4])
+
+    # Add legends
+    ax.legend()
+    ax2.legend()
 
     ax.set_facecolor(targetColour)
     ax2.set_facecolor(targetColour)
