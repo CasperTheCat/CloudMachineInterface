@@ -1,4 +1,8 @@
 
+# Ignore PNGs and random files
+*.png
+*.cache
+
 # Created by https://www.toptal.com/developers/gitignore/api/python,visualstudiocode,c++
 # Edit at https://www.toptal.com/developers/gitignore?templates=python,visualstudiocode,c++
 

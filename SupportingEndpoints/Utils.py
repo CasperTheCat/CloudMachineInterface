@@ -107,7 +107,8 @@ def MakeCacheName(x,y, td, width, modRange, disable, boilerPower=10000, tankageL
     p4 = "S{}_RNG{}".format(step,seed)
     #p5 = "T" if stack else "F"
 
-    return "_".join([p1,p2,p3,p4])#,p5])
+    name = "_".join([p1,p2,p3,p4])#,p5])
+    return name + ".cache"
 
 def HandleStacking(disturbs, states, stack, width):
     if stack:
