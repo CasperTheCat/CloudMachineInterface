@@ -14,7 +14,7 @@ import numpy
 import math
 import sys
 import Utils
-import BEEP
+import Graphing
 
 
 #!/usr/bin/env python3
@@ -232,9 +232,10 @@ def EvalFunction(history, feedback):
 
 
 
-beep = BEEP.ABEEP(seed, spTemp, spTarg, dlp)
 
-beep.LiveUpdate(maxY, solvedSize, TargetDPI, iTime, color, EvalFunction, 1300)
+graphing = Graphing.AGraphHolder(seed, spTemp, spTarg, dlp)
+
+graphing.LiveUpdate(maxY, solvedSize, TargetDPI, iTime, color, EvalFunction, 1300, labelOverrides=["Temperature (C)", "Heater Power (kW)", "Water Level (L)", "Target Temperature (C)", "Cosine Sim.", "Error"])
 
 
 

@@ -14,7 +14,7 @@ import numpy
 import math
 import sys
 import Utils
-import BEEP
+import Graphing
 
 
 
@@ -55,7 +55,7 @@ print("Using Seed: {}".format(seed))
 
 
 maxY = 105
-maxTDPI = 240
+maxTDPI = 120
 resolution = numpy.array((1920, 1080))
 TargetDPI = maxTDPI
 
@@ -72,20 +72,26 @@ with open("Pickle.era", "rb+") as f:
 
 
 def EvalFunction(history, feedback):
-    _, yo, xo = control.forced_response(
-        model,
-        numpy.arange(0, Utils.seqLength) * step,
-        U=history.transpose(),
-        X0=feedback
-    )
+    lastStep = history[-1]
 
-    return yo.transpose()[-1], xo.transpose()[0]
+    boilerTemp = lastStep[4]
+    waterIn = lastStep[0] * Utils.step
+    waterTemp = lastStep[1]
+    waterVol = lastStep[5]
+
+    boilerTemp = (waterVol * boilerTemp + waterTemp * waterIn) / (waterIn + waterVol)
+    boilerTemp = boilerTemp + ((lastStep[6] * Utils.step) / (4200 * waterVol))
+
+    compVal = numpy.copy(lastStep)
+    compVal[4] = boilerTemp
+
+    return compVal, []
 
 
 
-beep = BEEP.ABEEP(seed, spTemp, spTarg, dlp)
+graphing = Graphing.AGraphHolder(seed, spTemp, spTarg, dlp)
 
-beep.LiveUpdate(maxY, solvedSize, TargetDPI, iTime, color, EvalFunction, 1300)
+graphing.LiveUpdate(maxY, solvedSize, TargetDPI, iTime, color, EvalFunction, 1300, ["Temperature (C)", "Heater Power (kW)", "Water Level (L)", "Target Temperature (C)", "Cosine Sim.", "Error"])
 
 
 

@@ -10,7 +10,7 @@ import numpy
 import math
 import sys
 import Utils
-import BEEP
+import Graphing
 
 # spTemp = 55
 # spTarg = 75
@@ -18,7 +18,13 @@ import BEEP
 step = Utils.step
 # dlp = 150
 
-class ABEEP():
+def normalize(v):
+    norm = numpy.linalg.norm(v)
+    if norm == 0: 
+       return v
+    return v / norm
+
+class AGraphHolder():
     def __init__(self, seed, spTemp, spTarg, dlp):
         self.simulator = CSimulator(1, 600000)
         self.boiler = self.simulator.SpawnObject(ABoiler, 20000, 30, 80, 30)
@@ -30,7 +36,7 @@ class ABEEP():
         self.dlp = dlp
         self.seed = seed
 
-    def LiveUpdate(self, maxY, solvedSize, TargetDPI, iTime, color, predictionFunction, loopLimit):
+    def LiveUpdate(self, maxY, solvedSize, TargetDPI, iTime, color, predictionFunction, loopLimit, labelOverrides=None, label2Overrides=None):
         dataP = []
         dataT = []
         dataS = []
@@ -40,7 +46,7 @@ class ABEEP():
         dataDiff = []
 
 
-        fig, ax, ax2, packedAxis1, packedAxis2 = MakeLiveMap(maxY, solvedSize, TargetDPI, iTime, color)
+        fig, ax, ax2, packedAxis1, packedAxis2 = MakeLiveMap(maxY, solvedSize, TargetDPI, iTime, color, labelOverrides=labelOverrides, label2Overrides=label2Overrides)
 
         dra, two, three, four, warn, warnfar, warndiff = packedAxis1
         dra2, two2, three2, four2, warn2 = packedAxis2
@@ -73,10 +79,11 @@ class ABEEP():
         #!!!
         self.boilerController.SetDisableDisturbance()
         
-        backOffset = 15
+        backOffset = 30
+        futureOffset = 15
         arrLength = self.history.shape[0]
 
-        localHistory = numpy.zeros((backOffset, self.history.shape[1]))
+        localHistory = numpy.zeros((backOffset + futureOffset, self.history.shape[1]))
 
         try:
             for i in range(loopLimit):
@@ -101,6 +108,10 @@ class ABEEP():
                         # Predict next step
                         # Grab data *backOffset* from the end
 
+                        # BUG? This is trying to run *backOffset* behind but that's not always what we want
+                        # When it's behind, it lags the live changes and fails to predict
+                        #prediction, feedback = predictionFunction(self.history[arrLength - (Utils.seqLength + backOffset):arrLength - backOffset], xhat)
+
                         prediction, feedback = predictionFunction(self.history[arrLength - (Utils.seqLength + backOffset):arrLength - backOffset], xhat)
                         
                         # Save this for the next iteration
@@ -110,7 +121,7 @@ class ABEEP():
                         localHistory[0] = prediction
                         localXhat = xhat
 
-                        for sample in range(1, backOffset):
+                        for sample in range(1, backOffset + futureOffset):
 
                             #print(localHistory[:sample].shape)
                             #print(history[arrLength - (Utils.seqLength + backOffset) + sample:arrLength - backOffset + sample][:Utils.seqLength-sample].shape)
@@ -124,7 +135,7 @@ class ABEEP():
                                     ])
                             else:
                                 lh = localHistory[sample-Utils.seqLength:sample]
-                            #print(lh.shape)
+                            
 
                             futurePrediction, futureFeedback = predictionFunction(lh, localXhat)
                             
@@ -139,17 +150,32 @@ class ABEEP():
                             localHistory[sample] = futurePrediction
 
 
-                        #forecast = yo.transpose()[-1]
-                        forecast = localHistory[0]
-                        forecasterErrorFromSetpoint = forecast[4] - hist[4]
+                        # #forecast = yo.transpose()[-1]
+                        # forecast = localHistory[0]
+                        # forecasterErrorFromSetpoint = forecast[4] - hist[4]
 
-                        closePoint = forecasterErrorFromSetpoint
-                        farPoint = localHistory[-1][4] - hist[4]
+                        # closePoint = forecasterErrorFromSetpoint
+                        # farPoint = localHistory[-1][4] - hist[4]
 
-                        ldiff = hist[4] - self.history[-len(localHistory)][4]
-                        rdiff = farPoint
+                        # ldiff = hist[4] - self.history[-len(localHistory)][4]
+                        # rdiff = farPoint
 
-                        print(i, ldiff, rdiff)
+                        # print(i, ldiff, rdiff)
+
+                        vecStart = self.history[arrLength - (Utils.seqLength + backOffset)]
+                        vecCurrent = localHistory[0]
+                        vecPrediction = localHistory[-1]
+
+                        ldiff = vecCurrent - vecStart
+                        rdiff = vecPrediction - vecCurrent
+
+                        ldiffn = normalize(ldiff)
+                        rdiffn = normalize(rdiff)
+
+                        cosineSimilarity = (1 + numpy.dot(ldiffn, rdiffn)) * 50
+                        currentTimeError = math.sqrt(numpy.dot(ldiff, ldiff))
+
+                        print(i, cosineSimilarity, currentTimeError)
 
                         # If < EPS
                         #delta = numpy.sum(forecast - numpy.array(hist))
@@ -162,8 +188,6 @@ class ABEEP():
                         #delta = forecast - tStat
                         #delta = delta * Utils.StateOnlyWeight[4]
                         #warningBar.append(delta)                
-
-
 
                     # Add
                     self.history = self.history[1:]
@@ -184,10 +208,10 @@ class ABEEP():
                     # Second Set
                     #print(dataP.shape)
                     #print(localHistory.shape)
-                    predDataP = numpy.concatenate( [dataP, localHistory.transpose()[4]] )
-                    predDataT = numpy.concatenate( [dataT, localHistory.transpose()[6]] )
-                    predDataX = numpy.concatenate( [dataX, localHistory.transpose()[2]] )
-                    predDataS = numpy.concatenate( [dataS, localHistory.transpose()[5]] )
+                    predDataP = numpy.concatenate( [dataP[:-backOffset], localHistory.transpose()[4]] )
+                    predDataT = numpy.concatenate( [dataT[:-backOffset], localHistory.transpose()[6] * 0.001] )
+                    predDataX = numpy.concatenate( [dataX[:-backOffset], localHistory.transpose()[2]] )
+                    predDataS = numpy.concatenate( [dataS[:-backOffset], localHistory.transpose()[5]] )
                     # print("\n\n")
                     # print(history[-1])
                     # print(localHistory[-1])
@@ -205,12 +229,12 @@ class ABEEP():
 
 
                     dataP = numpy.concatenate([dataP, [self.boiler.GetBoilerWaterTemp()]])
-                    dataT = numpy.concatenate([dataT, [self.boiler.boilerPercent * self.boiler.boilerPerformance * 0.1]])
+                    dataT = numpy.concatenate([dataT, [self.boiler.boilerPercent * self.boiler.boilerPerformance * 0.001]])
                     dataX = numpy.concatenate([dataX, [self.boilerController.temperatureSetPoint]])
                     dataS = numpy.concatenate([dataS, [self.boiler.waterVolCurrent]])
-                    dataClose = numpy.concatenate([dataClose, [ldiff]])
-                    dataFar = numpy.concatenate([dataFar, [rdiff]])
-                    dataDiff = numpy.concatenate([dataDiff, [abs(ldiff - rdiff)]])
+                    dataClose = numpy.concatenate([dataClose, [cosineSimilarity]])
+                    dataFar = numpy.concatenate([dataFar, [currentTimeError]])
+                    #dataDiff = numpy.concatenate([dataDiff, [abs(ldiff - rdiff)]])
                     
 
                     removalCutter = numpy.argmax(dataP > (dataP[-1] - iTime))
@@ -236,8 +260,8 @@ class ABEEP():
                     warn.set_ydata(dataClose)
                     warnfar.set_xdata(numpy.arange(0, len(dataP)) * self.simulator.timeDilation)
                     warnfar.set_ydata(dataFar)
-                    warndiff.set_xdata(numpy.arange(0, len(dataP)) * self.simulator.timeDilation)
-                    warndiff.set_ydata(dataDiff)
+                    # warndiff.set_xdata(numpy.arange(0, len(dataP)) * self.simulator.timeDilation)
+                    # warndiff.set_ydata(dataDiff)
 
 
 

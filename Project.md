@@ -27,6 +27,9 @@ The splice is abstraction of a T-Junction with a one-way connection to the CMI. 
 
 By preventing this connection at a physical level or electronic level, we can build trust in the system to not interfere with the plant.
 
+
+---
+
 ## Diagram
 
 Below is a diagram of the Cloud Machine Interface.
@@ -34,6 +37,7 @@ Below is a diagram of the Cloud Machine Interface.
 
 In this diagram, the CMI connects to the site via a splice between an HMI and a PLC. This provides us with any and all data that the HMI can see.
 
+---
 
 ## Twin Interface
 
@@ -42,6 +46,7 @@ This interface needs to provide a way to retrieve values from the twin alongside
 
 In PLC land, there are tags that represent what the value is, so providing a name in the interface should be permissable.
 
+---
 
 ## Digital Twinning
 
@@ -50,7 +55,7 @@ A digital twin is a form of high-fidelity simulation that uses sensor data from 
 One of the key benefits of a digital twin is being able to evaluate the result of a scenario without risking the physical twin.
 
 
-## System Identification
+### System Identification
 
 Python forms the base of this project up to this point, and Python 3.6+ should be installed on your computer.
 
@@ -58,10 +63,36 @@ We use system identification to construct a digital twin based on historical dat
 
 The two libraries used are `control`, which contains a large array of control, and `modred`. The latter is required at present due to `control` not implementing eigensystem realisation (`control.era`) yet. 
 
-### Examples and Helpful Tips
+Testing System Identification is done by feeding a consistant disturbances into a physical and digital twin and measuring divergence over time.
 
 
 
+### Disturbance Forecasting
+
+Disturbances -- system inputs that are not in the internal state -- are not included in the identified system and therefore must be predicted by other means.
+
+---
+
+## Examples and Helpful Tips
+
+### Files
+
+#### SupportingEndpoints
+
+Whilst not named properly, a considerable amount of the code is housed here. Largely, this folder contains experiments.
+
+##### SupportingEndpoints/ProcessSimulation
+
+This folder contains the simulator that is used by most experiments in the parent folder.
+
+##### Graphing.py
+
+Graphing handles the graphed simulator tests. For every time step, it takes a slice of past data (*t-15:t*) and uses the supplied method to predict values until reaching the current time *t*. When *t* is reached, the test predicts a further 15 future values.
+
+This produces two metrics: an error from the current simulation step, and an prediction gradient.
+
+
+---
 
 ## Project Resources
 

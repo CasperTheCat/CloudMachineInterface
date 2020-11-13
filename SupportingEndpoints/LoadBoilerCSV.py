@@ -12,7 +12,7 @@ import math
 import datetime
 import sys
 import Utils
-import BEEP
+import Graphing
 import pandas
 
 sheetName = "Boiler.csv"
@@ -52,7 +52,7 @@ color = (0.05,0.05,0.05)
 
 
 
-fig, ax, ax2, packedAxis1, packedAxis2 = BEEP.MakeLiveMap(maxY, solvedSize, TargetDPI, iTime, color, labelOverrides=["Static pressure below the BFW tank (kPa)", "BFW in-line T[°C]", "Flue gas in-line T [°C]", "Hand-held T[°C]"])
+fig, ax, ax2, packedAxis1, packedAxis2 = Graphing.MakeLiveMap(maxY, solvedSize, TargetDPI, iTime, color, labelOverrides=["Static pressure below the BFW tank (kPa)", "BFW in-line T[°C]", "Flue gas in-line T [°C]", "Hand-held T[°C]"])
 
 dra, two, three, four, warn, warnfar, warndiff = packedAxis1
 dra2, two2, three2, four2, warn2 = packedAxis2
