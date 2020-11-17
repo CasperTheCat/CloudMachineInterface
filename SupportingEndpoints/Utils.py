@@ -17,9 +17,14 @@ seqLength = 300#5 * 12
 step = 5
 offset = 60
 Weights = [1, 1, 1, 1, 1, 1, 0.01, 0.100]
+ErrorWeights = [0,0,0,0,1.1,1,0.01]
 StateOnlyWeight = [0, 0, 0, 0, 1, 1, 0.001, 0.1]
 bFlip = False
 
+
+def ShuffleTogether(a ,b):
+    p = numpy.random.permutation(len(a))
+    return a[p], b[p]
 
 def TailState(x, minTail =100):
     nFeatures = x.shape[0]
@@ -163,10 +168,10 @@ def MakeData(x,y, td, width, modRange, disable, boilerPower=10000, tankageLimits
     #ins = [[],[],[],[],[],[]]
 
     # In Temperature, Inflow Rate, Outflow Rate
-    user_disturbances = [[] ,[], [], [], []] 
+    user_disturbances = [[] ,[], [], []] 
 
     # Water Level, Boiler Setpoint PID, Water Temperature + disturbances
-    stateInformation = [[],[]]
+    stateInformation = [[],[], []]
 
     # Nothing here!
     outputs = []
@@ -183,7 +188,7 @@ def MakeData(x,y, td, width, modRange, disable, boilerPower=10000, tankageLimits
         simulator.SimulateNTicks(step * 100, 1/100)
 
         if(not disable):
-            mod = math.sin(i * 0.005) * modRange #** 640 * 30
+            mod = math.sin(i * 0.05) * modRange #** 640 * 30
             boilerController.SetTarget(spTemp - math.floor(mod))
 
 
@@ -199,16 +204,16 @@ def MakeData(x,y, td, width, modRange, disable, boilerPower=10000, tankageLimits
         # Out Flow Rate
         user_disturbances[3].append(boiler.waterOutRatePerSecond)
 
+
+
         # Out Flow Temperature
-        user_disturbances[4].append(boiler.GetBoilerWaterTemp())
-
-
+        stateInformation[0].append(boiler.GetBoilerWaterTemp())
 
         # State Volume
-        stateInformation[0].append(boiler.waterVolCurrent)
+        stateInformation[1].append(boiler.waterVolCurrent)
 
         # State Power
-        stateInformation[1].append(boiler.boilerPerformance * boiler.boilerPercent)
+        stateInformation[2].append(boiler.boilerPerformance * boiler.boilerPercent)
         
         #stateInformation[2].append(boiler.boilerPercent * 100)
 

@@ -36,13 +36,18 @@ states = numpy.concatenate((states, states2, states3, states4, states5))
 # targetDisturbs = numpy.concatenate((targetDisturbs, targetDisturbs2, targetDisturbs3))
 # targetStates = numpy.concatenate((targetStates, targetStates2, targetStates3))
 
+disturbs, states = Utils.ShuffleTogether(disturbs, states)
+
 
 val_disturbs, val_states, val_targetDisturbs, val_targetStates = Utils.MakeData(allShape * 5, 75, dilation, seqLength, 2, False, step=step, stack=False)
 
 print(disturbs.shape)
 
-inFeed = numpy.concatenate((disturbs, states), axis=1)
-inVal = numpy.concatenate((val_disturbs, val_states), axis=1)
+# Moving concate. The matrixs ranks out of OKID are incorrect
+inFeed = disturbs#numpy.concatenate((disturbs, states), axis=1)
+inVal = val_disturbs#numpy.concatenate((val_disturbs, val_states), axis=1)
+inStates = states
+inValState = val_states
 
 print(inFeed.shape)
 #inVal = numpy.concatenate((val_disturbs, val_states), axis=2)
@@ -51,17 +56,17 @@ offset = Utils.offset
 
 #print(ins.shape)
 
-l1t = inFeed[:-seqLength]
-l2t = inFeed[seqLength:]
+l1t = inFeed
+l2t = inStates
 
-# Needed for OKID
-l1t = inFeed[:-1]
-l2t = inFeed[1:]
+# 
+# l1t = inFeed[:-1]
+# l2t = inFeed[1:]
 v2t = inVal
 
 l1 = l1t.transpose()
 #l2 = l2t.transpose()
-l2 = l1t.transpose()
+l2 = l2t.transpose()
 v2 = v2t.transpose()
 
 #l1 = states.transpose()
@@ -78,7 +83,7 @@ v2t = v2.transpose()
 
 
 markovs = disturbs.shape[0] // 120
-minmcs = 6
+minmcs = 0
 markovs = 25#66
 
 bestIndex = 0
@@ -90,7 +95,7 @@ def DistanceImagToPole(x):
 
     distSq = rScale * rScale + iScale * iScale
 
-    return distSq
+    return numpy.sqrt(distSq)
 
 def DistanceToZero(x):
     #dSq = numpy.power(x, 2)
@@ -106,24 +111,40 @@ def DistanceToZero(x):
 def GetFitness(x):
     return DistanceToZero(x)
 
-
 def CreateOKIDERA(l1, l2, i, step, dilation):
     #l1 = numpy.flip(l1, 1) 
     #l2 = numpy.flip(l2, 1) 
     kalman = modred.OKID(l1, l2, i)
     era = modred.ERA()
-    a,b,c = era.compute_model(kalman, 7, 7)
+    a,b,c = era.compute_model(kalman, 20000)#, 5, 7)
+    #b *= 1/step
     #a,b,c = modred.era.compute_ERA_model(kalman, 1500)
 
-    # print("Mats")
-    #print(a)
-    #print(b)
-    # print(c)
-    # print()
+    print("Mats")
+    print(a)
+    print(b)
+    print(c)
+    print(c == numpy.identity(3))
+    print()
+
+    # Some *real* asserts
+    assert(a.shape != (0,0))
+    assert(b.shape != (0,0))
+    assert(c.shape != (0,0))
+    #@c = numpy.identity(3)
+
+    ### Test Asserts
+    # assert(a.shape == (3,3))
+    # assert(b.shape == (3,4))
+    # assert(c.shape == (3,3))
+
+    #newScore = GetFitness(numpy.linalg.eigvals(a))
+    
 
     asb = control.ss(a,b,c, numpy.zeros((c.shape[0], b.shape[1])), step)
     poles = control.pole(asb)
     score = GetFitness(poles)
+
     return asb, score
 
 
@@ -150,6 +171,13 @@ for i in range(minmcs, markovs):
 print("Using {} markovs".format(bestIndex))
 
 asb, score = CreateOKIDERA(l1, l2 ,bestIndex, step, dilation)
+
+##### ##### ########## ##### #####
+## Sanity Check Rank
+##
+
+
+
 
 ##### ##### ########## ##### #####
 ## Pickle

@@ -73,13 +73,16 @@ class AGraphHolder():
         self.history = numpy.array(self.history)
         warningBar = []
 
-        xhat = numpy.ones((self.history.shape[1]))
-        localXhat = numpy.zeros((self.history.shape[1]))
+        xhat = numpy.ones((3))
+        xhat[0] = hist[4]
+        xhat[1] = hist[5]
+        xhat[2] = hist[6]
+        localXhat = numpy.zeros((3))
 
         #!!!
         self.boilerController.SetDisableDisturbance()
         
-        backOffset = 30
+        backOffset = 15
         futureOffset = 15
         arrLength = self.history.shape[0]
 
@@ -118,7 +121,7 @@ class AGraphHolder():
                         xhat = feedback
 
                         # Prep for the loop
-                        localHistory[0] = prediction
+                        localHistory[0] = numpy.concatenate((self.history[arrLength - backOffset][:4], prediction))
                         localXhat = xhat
 
                         for sample in range(1, backOffset + futureOffset):
@@ -126,11 +129,18 @@ class AGraphHolder():
                             #print(localHistory[:sample].shape)
                             #print(history[arrLength - (Utils.seqLength + backOffset) + sample:arrLength - backOffset + sample][:Utils.seqLength-sample].shape)
 
+                            # Set Next Value for Disturbs (Forecast)
+                            nextVal = self.history[-1][:4]
+
                             #Concat
-                            if sample < Utils.seqLength:
+                            # If Array is still got data
+                            if sample < backOffset:
+                                lh = self.history[arrLength - (Utils.seqLength + backOffset) + sample:(arrLength - backOffset) + sample]
+                                nextVal = self.history[arrLength - backOffset + sample][:4]
+                            elif sample < Utils.seqLength:
                                 lh = numpy.concatenate(
                                     [
-                                        self.history[arrLength - (Utils.seqLength + backOffset) + sample:arrLength - backOffset + sample][:Utils.seqLength-sample],
+                                        self.history[arrLength - (Utils.seqLength + backOffset) + sample:(arrLength - backOffset) + sample][:Utils.seqLength-sample],
                                         localHistory[:sample]
                                     ])
                             else:
@@ -139,15 +149,16 @@ class AGraphHolder():
 
                             futurePrediction, futureFeedback = predictionFunction(lh, localXhat)
                             
-                            # t, yo, xo = control.forced_response(
-                            #     model,
-                            #     numpy.arange(0, Utils.seqLength) * step,
-                            #     U=lh.transpose(),
-                            #     X0=localXhat
-                            # )
+                            # if(sample == 1):
+                            #     print(lh[-1])
+                            #     print(self.history[arrLength - backOffset + 1])
+                            #assert(sample != backOffset - 1 or lh[-1][1] == self.history[-1][1])
+
+                            
 
                             localXhat = futureFeedback
-                            localHistory[sample] = futurePrediction
+                            # Change Below when we can forecast
+                            localHistory[sample] = numpy.concatenate((nextVal, futurePrediction))
 
 
                         # #forecast = yo.transpose()[-1]
@@ -162,9 +173,9 @@ class AGraphHolder():
 
                         # print(i, ldiff, rdiff)
 
-                        vecStart = self.history[arrLength - (Utils.seqLength + backOffset)]
-                        vecCurrent = localHistory[0]
-                        vecPrediction = localHistory[-1]
+                        vecStart = self.history[arrLength - (Utils.seqLength + backOffset)] * Utils.ErrorWeights
+                        vecCurrent = self.history[-1] * Utils.ErrorWeights
+                        vecPrediction = localHistory[backOffset - 1] * Utils.ErrorWeights
 
                         ldiff = vecCurrent - vecStart
                         rdiff = vecPrediction - vecCurrent
@@ -173,7 +184,7 @@ class AGraphHolder():
                         rdiffn = normalize(rdiff)
 
                         cosineSimilarity = (1 + numpy.dot(ldiffn, rdiffn)) * 50
-                        currentTimeError = math.sqrt(numpy.dot(ldiff, ldiff))
+                        currentTimeError = math.sqrt(numpy.dot(rdiff, rdiff))
 
                         print(i, cosineSimilarity, currentTimeError)
 
@@ -216,14 +227,6 @@ class AGraphHolder():
                     # print(history[-1])
                     # print(localHistory[-1])
                     # print(boiler.GetBoilerWaterTemp())
-                    dra2.set_xdata(numpy.arange(0, len(predDataP)) * self.simulator.timeDilation)
-                    dra2.set_ydata(predDataP)
-                    two2.set_xdata(numpy.arange(0, len(predDataP)) * self.simulator.timeDilation)
-                    two2.set_ydata(predDataT)
-                    three2.set_xdata(numpy.arange(0, len(predDataP)) * self.simulator.timeDilation)
-                    three2.set_ydata(predDataS)
-                    four2.set_xdata(numpy.arange(0, len(predDataP)) * self.simulator.timeDilation)
-                    four2.set_ydata(predDataX)
                     #warn2.set_xdata(numpy.arange(0, len(dataP)) * simulator.timeDilation)
                     #warn2.set_ydata(data5)
 
@@ -237,10 +240,11 @@ class AGraphHolder():
                     #dataDiff = numpy.concatenate([dataDiff, [abs(ldiff - rdiff)]])
                     
 
-                    removalCutter = numpy.argmax(dataP > (dataP[-1] - iTime))
+                    #removalCutter = numpy.argmax(dataP > (dataP[-1] - iTime))
 
                     #dra.set_ydata(dataP[removalCutter:])
-                    at = 0#max((len(dataP) - 1) - iTime, 0)
+                    at = max((len(dataP) - 1) - iTime, 0)
+                    #$print(at)
                     dataP = dataP[at:]
                     dataT = dataT[at:]
                     dataS = dataS[at:]
@@ -248,6 +252,24 @@ class AGraphHolder():
                     dataClose = dataClose[at:]
                     dataFar = dataFar[at:]
                     dataDiff = dataDiff[at:]
+
+                    #predat = max((len(predDataP) - 1) - iTime, 0)
+                    predDataP[at:]
+                    predDataS[at:]
+                    predDataT[at:]
+                    predDataX[at:]
+
+
+                    dra2.set_xdata(numpy.arange(0, len(predDataP)) * self.simulator.timeDilation)
+                    dra2.set_ydata(predDataP)
+                    two2.set_xdata(numpy.arange(0, len(predDataP)) * self.simulator.timeDilation)
+                    two2.set_ydata(predDataT)
+                    three2.set_xdata(numpy.arange(0, len(predDataP)) * self.simulator.timeDilation)
+                    three2.set_ydata(predDataS)
+                    four2.set_xdata(numpy.arange(0, len(predDataP)) * self.simulator.timeDilation)
+                    four2.set_ydata(predDataX)
+
+                    
                     dra.set_xdata(numpy.arange(0, len(dataP)) * self.simulator.timeDilation)
                     dra.set_ydata(dataP)
                     two.set_xdata(numpy.arange(0, len(dataP)) * self.simulator.timeDilation)
@@ -266,6 +288,10 @@ class AGraphHolder():
 
 
                     ax.set_xlim(left=-5, right=len(predDataP) * self.simulator.timeDilation +5)
+                    #ax2.fill_between(x, len(dataP) * self.simulator.timeDilation +5, len(predDataP) * self.simulator.timeDilation +5, facecolor='green', alpha=0.5)
+                    #ax2.fill_between(numpy.arange(0, len(dataP)) * self.simulator.timeDilation, 0, 1, where=x > (len(dataP) * self.simulator.timeDilation), facecolor='green', alpha=0.5)
+                    ax2.fill_between(numpy.arange(len(dataP) - 1, len(predDataP)) * self.simulator.timeDilation, 0, maxY, facecolor='purple', alpha=0.25)
+                    ax2.fill_between(numpy.arange(len(dataP) - (1 + backOffset), len(dataP)) * self.simulator.timeDilation, 0, maxY, facecolor='pink', alpha=0.25)
 
                     #ax = pd.plot()
                     fig.canvas.draw()
@@ -372,8 +398,8 @@ def MakeLiveMap(maxY, solvedSize, TargetDPI, iTime, targetColour, labelOverrides
     ax.set_ylabel("Temperature (°C) / Power (%) / Water Level (L)", color='white')
     ax.set_ylabel("True Values", color='white')
     ax2.set_ylabel("Future Trend Values", color='white')
-    ax.set_ylim(top=maxY, bottom=-1)
-    ax2.set_ylim(top=maxY, bottom=-1)
+    ax.set_ylim(top=maxY, bottom=-5)
+    ax2.set_ylim(top=maxY, bottom=-5)
     #ax.set_ylim(top=maxY, bottom=-100)
     #ax.set_xlim(left=-5, right=iTime+5)
     ax.tick_params(axis='x', colors='white')
