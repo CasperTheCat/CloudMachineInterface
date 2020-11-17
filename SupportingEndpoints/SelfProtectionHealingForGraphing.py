@@ -75,7 +75,7 @@ def EvalFunction(history, feedback):
     _, yo, xo = control.forced_response(
         model,
         numpy.arange(0, Utils.seqLength) * step,
-        U=history.transpose(),
+        U=history.transpose()[:4],
         X0=feedback
     )
 
