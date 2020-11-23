@@ -16,6 +16,7 @@ import Graphing
 # spTarg = 75
 # seed = 0
 step = Utils.step
+nVars = 3
 # dlp = 150
 
 def normalize(v):
@@ -53,7 +54,10 @@ class AGraphHolder():
 
 
         ##### Actually do the loop!
-        historyLength = 150 + Utils.seqLength
+        historyLength = 450 + Utils.seqLength
+        xhat = numpy.zeros((nVars))
+
+        print("Generating Pre Run History")
 
         for i in range(historyLength):
             self.simulator.SimulateNTicks(step * 100, 1/100)
@@ -69,18 +73,29 @@ class AGraphHolder():
                 self.boiler.boilerPerformance * self.boiler.boilerPercent
             ]
             self.history.append(numpy.array(hist))
+
+            # # Skip first loop, it's not valid for all predictions
+            # if i > 0:
+            #     _, xhat = predictionFunction( numpy.array(self.history)[-4:], xhat)
+            #     print(xhat)
         
         self.history = numpy.array(self.history)
+
+        tempHist = Utils.TailState(self.history.transpose(), Utils.offset).transpose()
+        _, xhat = predictionFunction(tempHist, xhat)
+
+
         warningBar = []
 
-        xhat = numpy.ones((3))
-        xhat[0] = hist[4]
-        xhat[1] = hist[5]
-        xhat[2] = hist[6]
-        localXhat = numpy.zeros((3))
+        print(xhat)
+        
+        # xhat[0] = hist[4]
+        # xhat[1] = hist[5]
+        # xhat[2] = hist[6]
+        localXhat = numpy.zeros((nVars))
 
         #!!!
-        self.boilerController.SetDisableDisturbance()
+        #self.boilerController.SetDisableDisturbance()
         
         backOffset = 15
         futureOffset = 15
@@ -186,7 +201,7 @@ class AGraphHolder():
                         cosineSimilarity = (1 + numpy.dot(ldiffn, rdiffn)) * 50
                         currentTimeError = math.sqrt(numpy.dot(rdiff, rdiff))
 
-                        print(i, cosineSimilarity, currentTimeError)
+                        print(i, cosineSimilarity, currentTimeError, vecCurrent[4:])
 
                         # If < EPS
                         #delta = numpy.sum(forecast - numpy.array(hist))
@@ -210,6 +225,10 @@ class AGraphHolder():
                         # Back
                         print("Setting {}".format(i))
                         self.boilerController.SetTarget(self.spTarg)
+
+                    if i > self.dlp:
+                        mod = math.sin(i * 0.05) * 10 #** 640 * 30
+                        self.boilerController.SetTarget(self.spTarg - math.floor(mod))
 
                     ax.collections.clear()
                     ax2.collections.clear()
@@ -244,7 +263,6 @@ class AGraphHolder():
 
                     #dra.set_ydata(dataP[removalCutter:])
                     at = max((len(dataP) - 1) - iTime, 0)
-                    #$print(at)
                     dataP = dataP[at:]
                     dataT = dataT[at:]
                     dataS = dataS[at:]
@@ -254,10 +272,10 @@ class AGraphHolder():
                     dataDiff = dataDiff[at:]
 
                     #predat = max((len(predDataP) - 1) - iTime, 0)
-                    predDataP[at:]
-                    predDataS[at:]
-                    predDataT[at:]
-                    predDataX[at:]
+                    predDataP = predDataP[at:]
+                    predDataS = predDataS[at:]
+                    predDataT = predDataT[at:]
+                    predDataX = predDataX[at:]
 
 
                     dra2.set_xdata(numpy.arange(0, len(predDataP)) * self.simulator.timeDilation)

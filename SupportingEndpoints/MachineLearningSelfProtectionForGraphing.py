@@ -186,11 +186,11 @@ predmodel = keras.models.load_model("model.tensorflow")
 # simulator = CSimulator(1, 600000)
 # #simulator = CSimulator(1, 200000)
 
-# spTemp = 55
-# spTarg = 75
-# seed = 0
-# step = Utils.step
-# dlp = 150
+spTemp = 55
+spTarg = 75
+seed = 0
+step = Utils.step
+dlp = 150
 
 if len(sys.argv) > 1:
     seed = int(sys.argv[1])
@@ -207,7 +207,7 @@ if len(sys.argv) > 4:
 print("Using Seed: {}".format(seed))
 
 maxY = 105
-maxTDPI = 240
+maxTDPI = 120
 resolution = numpy.array((1920, 1080))
 TargetDPI = maxTDPI
 
@@ -224,11 +224,11 @@ with open("Pickle.era", "rb+") as f:
 
 
 def EvalFunction(history, feedback):
-    ytest = numpy.expand_dims(history, 0)
+    ytest = numpy.expand_dims(history[:seqLength], 0)
     forecast = predmodel.predict(ytest)
     forebar = tf.squeeze(forecast, 0).numpy()
 
-    return forebar, []
+    return forebar[4:], []
 
 
 

@@ -74,7 +74,7 @@ with open("Pickle.era", "rb+") as f:
 def EvalFunction(history, feedback):
     _, yo, xo = control.forced_response(
         model,
-        numpy.arange(0, Utils.seqLength) * step,
+        numpy.arange(0, history.shape[0]) * step,
         U=history.transpose()[:4],
         X0=feedback
     )
@@ -86,7 +86,7 @@ def EvalFunction(history, feedback):
     # output[4] = yo.transpose()[-1][4]
 
     # return output, xo.transpose()[0]
-    return yo.transpose()[-1], xo.transpose()[0]
+    return yo.transpose()[-1], xo.transpose()[1]
 
 
 

@@ -28,6 +28,7 @@ class ABoilerController(AController):
         self.boilerStickyStart = 40000 + max(0, self.rng.gauss(1, 0.5)) * 25000
         self.boilerStickyEnd = self.boilerStickyStart + max(0, self.rng.gauss(1, 0.5)) * 30000
         self.boilerStickyAmount = 300 + max(0, self.rng.gauss(1, 0.5)) * 1200
+        
         self.boilerPOutScale = 0.5 + max(0, self.rng.gauss(1, 0.5))
         self.boilerPInScale = 0.5 + max(0, self.rng.gauss(1, 0.5))
         self.boilerPOutOffsetScale1 = 30 + max(0, self.rng.gauss(1, 0.5)) * 1000

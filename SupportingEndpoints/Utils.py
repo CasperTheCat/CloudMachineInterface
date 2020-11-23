@@ -12,12 +12,12 @@ import matplotlib.pyplot
 import pandas
 import os
 
-dilation = 1
+dilation = 1#(1/4) * (1/5)
 seqLength = 300#5 * 12
 step = 5
-offset = 60
+offset = 230
 Weights = [1, 1, 1, 1, 1, 1, 0.01, 0.100]
-ErrorWeights = [0,0,0,0,1.1,1,0.01]
+ErrorWeights = [0, 0, 0, 0, 1.1, 1, 0.01]#, 0.01]
 StateOnlyWeight = [0, 0, 0, 0, 1, 1, 0.001, 0.1]
 bFlip = False
 
@@ -35,7 +35,7 @@ def TailState(x, minTail =100):
     
 
     for i in range(nTailLength):
-        xt[i] = xt[i] * 0#math.exp(-i / (nTailLength / 4) )
+        xt[i] = xt[i] * math.exp(-i / (nTailLength / 4) )
 
     for i in range(nTailLength):
         #print(xt[-nTailLength + i], math.exp(-i / (nTailLength / 4) ) )
@@ -106,7 +106,7 @@ def window_stack(a, stepsize=1, width=3, nummax=None):
 
 
 def MakeCacheName(x,y, td, width, modRange, disable, boilerPower=10000, tankageLimits=(5,75,80), initWaterTemp=30, initCapacity=35, step=1, stack=True, seed=0):
-    p1 = "{}_{}_{}".format(x,y,td)
+    p1 = "{}_{}_{}_{}".format(x,y,td, modRange)
     p2 = "T" if disable else "F"
     p3 = "{}_{}.{}.{}_{}_{}".format(boilerPower, tankageLimits[0], tankageLimits[1], tankageLimits[2], initWaterTemp, initCapacity)
     p4 = "S{}_RNG{}".format(step,seed)
@@ -163,6 +163,8 @@ def MakeData(x,y, td, width, modRange, disable, boilerPower=10000, tankageLimits
 
     if(disable):
         boilerController.SetDisableDisturbance()
+    else:
+        boilerController.SetEnableDisturbance()
 
     measurements = x // step
     #ins = [[],[],[],[],[],[]]
@@ -171,7 +173,7 @@ def MakeData(x,y, td, width, modRange, disable, boilerPower=10000, tankageLimits
     user_disturbances = [[] ,[], [], []] 
 
     # Water Level, Boiler Setpoint PID, Water Temperature + disturbances
-    stateInformation = [[],[], []]
+    stateInformation = [[],[],[]]
 
     # Nothing here!
     outputs = []
@@ -214,6 +216,8 @@ def MakeData(x,y, td, width, modRange, disable, boilerPower=10000, tankageLimits
 
         # State Power
         stateInformation[2].append(boiler.boilerPerformance * boiler.boilerPercent)
+
+        #user_disturbances[4].append(boilerController.PID.iVal)
         
         #stateInformation[2].append(boiler.boilerPercent * 100)
 

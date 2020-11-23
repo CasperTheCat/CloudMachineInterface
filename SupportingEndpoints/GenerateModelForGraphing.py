@@ -23,31 +23,34 @@ disabledisturb = False
 allShape = 35000
 
 # 60k seconds, measuring every minute
-disturbs, states, targetDisturbs, targetStates = Utils.MakeData(allShape, 55, dilation, seqLength, 10, disabledisturb and False, step=step, stack=False, seed=0)
+disturbs, states, targetDisturbs, targetStates = Utils.MakeData(allShape, 55, dilation, seqLength, 3, disabledisturb, step=step, stack=False, seed=0)
 disturbs2, states2, targetDisturbs2, targetStates2 = Utils.MakeData(allShape, 45, dilation, seqLength, 10, disabledisturb, step=step, stack=False, seed=2)
 disturbs3, states3, targetDisturbs3, targetStates3 = Utils.MakeData(allShape, 35, dilation, seqLength, 4, disabledisturb, step=step, stack=False, seed=5)
 disturbs4, states4, targetDisturbs4, targetStates4 = Utils.MakeData(allShape, 85, dilation, seqLength, 18, disabledisturb, step=step, stack=False, seed=8)
 disturbs5, states5, targetDisturbs5, targetStates5 = Utils.MakeData(allShape, 95, dilation, seqLength, 7, disabledisturb, step=step, stack=False, seed=11)
+disturbs6, states6, targetDisturbs6, targetStates6 = Utils.MakeData(allShape, 15, dilation, seqLength, 16, disabledisturb, step=step, stack=False, seed=16)
+disturbs7, states7, targetDisturbs7, targetStates7 = Utils.MakeData(allShape, 25, dilation, seqLength, 6, disabledisturb, step=step, stack=False, seed=19)
 
 print(disturbs.shape)
 
-disturbs = numpy.concatenate((disturbs, disturbs2, disturbs3, disturbs4, disturbs5))
-states = numpy.concatenate((states, states2, states3, states4, states5))
+disturbs = numpy.concatenate((disturbs, disturbs2, disturbs3, disturbs4, disturbs5, disturbs6, disturbs7))
+states = numpy.concatenate((states, states2, states3, states4, states5, states6, states7))
+
 # targetDisturbs = numpy.concatenate((targetDisturbs, targetDisturbs2, targetDisturbs3))
 # targetStates = numpy.concatenate((targetStates, targetStates2, targetStates3))
 
-disturbs, states = Utils.ShuffleTogether(disturbs, states)
+#disturbs, states = Utils.ShuffleTogether(disturbs, states)
 
 
-val_disturbs, val_states, val_targetDisturbs, val_targetStates = Utils.MakeData(allShape * 5, 75, dilation, seqLength, 2, False, step=step, stack=False)
+#val_disturbs, val_states, val_targetDisturbs, val_targetStates = Utils.MakeData(10, 75, dilation, seqLength, 2, False, step=step, stack=False)
 
 print(disturbs.shape)
 
 # Moving concate. The matrixs ranks out of OKID are incorrect
 inFeed = disturbs#numpy.concatenate((disturbs, states), axis=1)
-inVal = val_disturbs#numpy.concatenate((val_disturbs, val_states), axis=1)
+#inVal = val_disturbs#numpy.concatenate((val_disturbs, val_states), axis=1)
 inStates = states
-inValState = val_states
+#inValState = val_states
 
 print(inFeed.shape)
 #inVal = numpy.concatenate((val_disturbs, val_states), axis=2)
@@ -62,22 +65,22 @@ l2t = inStates
 # 
 # l1t = inFeed[:-1]
 # l2t = inFeed[1:]
-v2t = inVal
+v2t = disturbs
 
 l1 = l1t.transpose()
 #l2 = l2t.transpose()
 l2 = l2t.transpose()
-v2 = v2t.transpose()
+#v2 = v2t.transpose()
 
 #l1 = states.transpose()
-l1 = Utils.TailState(l1, offset)
-l2 = Utils.TailState(l2, offset)
-v2 = Utils.TailState(v2, offset)
+#l1 = Utils.TailState(l1, offset)
+#l2 = Utils.TailState(l2, offset)
+#v2 = Utils.TailState(v2, offset)
 
 # Retranspose
 l1t = l1.transpose()
 l2t = l2.transpose()
-v2t = v2.transpose()
+#v2t = v2.transpose()
 
 #print(l1.shape, l2.shape)
 
@@ -87,7 +90,8 @@ minmcs = 0
 markovs = 25#66
 
 bestIndex = 0
-bestScore = 1 # Unstable above 1
+#bestScore = 1 # Unstable above 1
+bestScore = 1.5# Allow at least 1 failed pole
 
 def DistanceImagToPole(x):
     rScale = x.real
@@ -103,7 +107,7 @@ def DistanceToZero(x):
 
     for i in x:
         ds = DistanceImagToPole(i)
-        accumDist += ds
+        accumDist += 1 if ds > 1 else ds # ds
 
     return accumDist
 
@@ -116,16 +120,18 @@ def CreateOKIDERA(l1, l2, i, step, dilation):
     #l2 = numpy.flip(l2, 1) 
     kalman = modred.OKID(l1, l2, i)
     era = modred.ERA()
-    a,b,c = era.compute_model(kalman, 20000)#, 5, 7)
+    a,b,c = era.compute_model(kalman, 20000)
     #b *= 1/step
     #a,b,c = modred.era.compute_ERA_model(kalman, 1500)
 
     print("Mats")
-    print(a)
-    print(b)
+    #print(a)
+    #print(b)
     print(c)
-    print(c == numpy.identity(3))
+    print(c == numpy.identity(4))
     print()
+
+    c = numpy.identity(3) * 0.5 + c * 0.5
 
     # Some *real* asserts
     assert(a.shape != (0,0))
@@ -138,8 +144,8 @@ def CreateOKIDERA(l1, l2, i, step, dilation):
     # assert(b.shape == (3,4))
     # assert(c.shape == (3,3))
 
-    #newScore = GetFitness(numpy.linalg.eigvals(a))
-    
+    newScore = GetFitness(numpy.linalg.eigvals(a))
+    print(newScore)
 
     asb = control.ss(a,b,c, numpy.zeros((c.shape[0], b.shape[1])), step)
     poles = control.pole(asb)
