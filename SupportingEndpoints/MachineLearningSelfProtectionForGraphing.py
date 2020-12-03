@@ -228,7 +228,7 @@ def EvalFunction(history, feedback):
     forecast = predmodel.predict(ytest)
     forebar = tf.squeeze(forecast, 0).numpy()
 
-    return forebar[4:], []
+    return forebar, []
 
 
 

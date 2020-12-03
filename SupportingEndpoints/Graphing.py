@@ -4,8 +4,6 @@ from ProcessSimulation import AActor, ABoiler, ABoilerController
 import time
 import matplotlib
 import matplotlib.pyplot
-matplotlib.interactive(True)
-matplotlib.use("TkAgg") 
 import numpy
 import math
 import sys
@@ -126,6 +124,7 @@ class AGraphHolder():
 
 
             stepError = self.history[arrLength - backOffset] * Utils.ErrorWeights - localHistory[0] * Utils.ErrorWeights
+            stepError = numpy.abs(stepError)
             offsetResults[0].append(stepError)
 
             for sample in range(1, backOffset):
@@ -154,6 +153,7 @@ class AGraphHolder():
                 localHistory[sample] = numpy.concatenate((nextVal, futurePrediction))
 
                 stepError = self.history[arrLength - backOffset + sample] * Utils.ErrorWeights - localHistory[sample] * Utils.ErrorWeights
+                stepError = numpy.abs(stepError)
                 offsetResults[sample].append(stepError)
 
 

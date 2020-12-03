@@ -11,8 +11,8 @@ from ProcessSimulation import AActor, ABoiler, ABoilerController
 import time
 import matplotlib
 import matplotlib.pyplot
-matplotlib.interactive(True)
-matplotlib.use("TkAgg") 
+#matplotlib.interactive(True)
+#matplotlib.use("TkAgg") 
 import numpy
 import math
 import sys
@@ -91,12 +91,14 @@ def ML_EvalFunction(history, feedback):
 
 graphing = Graphing.AGraphHolder(seed, spTemp, spTarg, dlp)
 
-# results = graphing.TestOffsetWidth(EvalFunction, 3000)
+results = graphing.TestOffsetWidth(EvalFunction, 500)
 
-# with open("backtrackStab.dat", "wb+") as f:
-#     pickle.dump(results, f)
+with open("backtrackStab.dat", "wb+") as f:
+    pickle.dump(results, f)
 
-mlresults = graphing.TestOffsetWidth(ML_EvalFunction, 3000)
+del results
+
+mlresults = graphing.TestOffsetWidth(ML_EvalFunction, 25)
 
 with open("backtrackStabWithML.dat", "wb+") as f:
     pickle.dump(mlresults, f)

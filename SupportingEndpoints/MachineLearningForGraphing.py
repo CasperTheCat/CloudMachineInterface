@@ -103,18 +103,23 @@ predmodel = keras.Sequential(
     [
         #layers.Embedding(input_shape=(100, 3), output_dim=128),
         layers.Input(shape=(seqLength, states.shape[2] + disturbs.shape[2])),
-        layers.LSTM(1024, return_sequences=True),
-        layers.Dropout(0.1),
-        #layers.LSTM(1024, return_sequences=True),
+        # layers.LSTM(1024, return_sequences=True),
+        # layers.Dropout(0.1),
+        # layers.LSTM(1024, return_sequences=True),
         #layers.GRU(64, return_sequences=True),
         #layers.LSTM(128, return_sequences=True),
-        layers.LSTM(1024, return_sequences=False),
+        layers.GRU(256, return_sequences=True),
+        layers.GRU(256, return_sequences=True),
+        layers.GRU(256, return_sequences=True),
+        layers.GRU(256, return_sequences=True),
+        #layers.LSTM(1024, return_sequences=False),
         layers.Dropout(0.1),
+        layers.GRU(256, return_sequences=False),
         #layers.LSTM(64, return_sequences=True),
         #layers.LSTM(64, return_sequences=True),
         
-        layers.Dense(1024, activation='relu'),
-        layers.Dense(states.shape[2]+ disturbs.shape[2])
+        layers.Dense(256, activation='relu'),
+        layers.Dense(states.shape[2])
     ]
 )
 
@@ -150,9 +155,9 @@ assert(disturbs[1][-1][2] == targetDisturbs[0][2])
 assert(len(disturbs) == len(targetDisturbs))
 
 inFeed = numpy.concatenate((disturbs, states), axis=2)
-inFeedStates= numpy.concatenate((targetDisturbs, targetStates), axis=1)
+inFeedStates = targetStates#numpy.concatenate((targetDisturbs, targetStates), axis=1)
 inVal = numpy.concatenate((val_disturbs, val_states), axis=2)
-inValStates = numpy.concatenate((val_targetDisturbs, val_targetStates), axis=1)
+inValStates = val_targetStates#numpy.concatenate((val_targetDisturbs, val_targetStates), axis=1)
 
 print(inVal.shape)
 print(inFeed.shape)
