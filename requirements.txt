@@ -3,3 +3,4 @@ waitress>=1.4.4
 requests>=2.23.0
 control>=0.8.0
 modred>=2.0.4
+pandas>=1.1.4
