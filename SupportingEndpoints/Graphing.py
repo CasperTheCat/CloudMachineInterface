@@ -53,16 +53,9 @@ class AGraphHolder():
 
         return 1 / numpy.mean(comp)
 
-    def TestOffsetWidth(self, predictionFunction, loopLimit, backOffset = 150, futureOffset = 0, historyLength = 450 + Utils.seqLength):
-
-        offsetResults = {}
-
-        for i in range(backOffset):
-            offsetResults[i] = []
-
-        xhat = numpy.zeros((nVars))
-
+    def GenerateAndSetHistory(self, predictionFunction, historyLength):
         self.history = []
+        xhat = numpy.zeros((nVars))
 
         ## Create History
         for i in range(historyLength):
@@ -84,11 +77,328 @@ class AGraphHolder():
             # if i > 0:
             #     _, xhat = predictionFunction( numpy.array(self.history)[-4:], xhat)
             #     print(xhat)
-        
+
         self.history = numpy.array(self.history)
 
         tempHist = Utils.TailState(self.history.transpose(), Utils.offset).transpose()
         _, xhat = predictionFunction(tempHist, xhat)
+
+        return xhat
+
+    def CoreLoop(self, loopLimit):
+        return None
+
+    def CoreSample(self, predictionFunction, localHistory, localXhat, sample, backOffset, arrLength):
+        # Set Next Value for Disturbs (Forecast)
+        nextVal = self.history[-1][:4]
+
+        #Concat
+        # If Array is still got data
+        if sample < backOffset:
+            lh = self.history[arrLength - (Utils.seqLength + backOffset) + sample:(arrLength - backOffset) + sample]
+            nextVal = self.history[arrLength - backOffset + sample][:4]
+        elif sample < Utils.seqLength:
+            lh = numpy.concatenate(
+                [
+                    self.history[arrLength - (Utils.seqLength + backOffset) + sample:(arrLength - backOffset) + sample][:Utils.seqLength-sample],
+                    localHistory[:sample]
+                ])
+        else:
+            lh = localHistory[sample-Utils.seqLength:sample]
+        
+
+        return predictionFunction(lh, localXhat), nextVal
+
+    def TestRetrainLive(self, maxY, solvedSize, TargetDPI, iTime, color, predictionFunction, loopLimit, labelOverrides=None, label2Overrides=None, backOffset = 15, futureOffset = 15, historyLength = 450 + Utils.seqLength):
+        dataP = []
+        dataT = []
+        dataS = []
+        dataX = []
+        dataClose = []
+        dataFar = []
+        dataDiff = []
+
+
+        fig, ax, ax2, packedAxis1, packedAxis2 = MakeLiveMap(maxY, solvedSize, TargetDPI, iTime, color, labelOverrides=labelOverrides, label2Overrides=label2Overrides)
+
+        dra, two, three, four, warn, warnfar, warndiff = packedAxis1
+        dra2, two2, three2, four2, warn2 = packedAxis2
+
+
+        ##### Actually do the loop!
+        # xhat = numpy.zeros((nVars))
+
+        print("Generating Pre Run History")
+
+        xhat = self.GenerateAndSetHistory(predictionFunction, historyLength)
+
+        # tempHist = Utils.TailState(self.history.transpose(), Utils.offset).transpose()
+        # _, xhat = predictionFunction(tempHist, xhat)
+
+
+        warningBar = []
+
+        print(xhat)
+        
+        # xhat[0] = hist[4]
+        # xhat[1] = hist[5]
+        # xhat[2] = hist[6]
+        localXhat = numpy.zeros((nVars))
+
+        #!!!
+        #self.boilerController.SetDisableDisturbance()
+        
+        arrLength = self.history.shape[0]
+
+        localHistory = numpy.zeros((backOffset + futureOffset, self.history.shape[1]))
+
+        try:
+            for i in range(loopLimit):
+                print("Overarching {}".format(i))
+                for x in range(1):
+                    self.simulator.SimulateNTicks(step * 100, 1/100)
+
+                    hist = [
+                        self.boiler.waterInRatePerSecond,
+                        self.boiler.GetInflowWaterTemp(),
+                        self.boilerController.temperatureSetPoint,
+                        #spTemp,
+                        self.boiler.waterOutRatePerSecond,
+                        self.boiler.GetBoilerWaterTemp(),
+                        self.boiler.waterVolCurrent,
+                        self.boiler.boilerPerformance * self.boiler.boilerPercent
+                    ]
+
+                    if x == 0:
+                        #print(history[arrLength - (Utils.seqLength + backOffset):arrLength - backOffset].transpose().shape)
+
+                        # Predict next step
+                        # Grab data *backOffset* from the end
+
+                        # BUG? This is trying to run *backOffset* behind but that's not always what we want
+                        # When it's behind, it lags the live changes and fails to predict
+                        #prediction, feedback = predictionFunction(self.history[arrLength - (Utils.seqLength + backOffset):arrLength - backOffset], xhat)
+
+                        prediction, feedback = predictionFunction(self.history[arrLength - (Utils.seqLength + backOffset):arrLength - backOffset], xhat)
+                        
+                        # Save this for the next iteration
+                        xhat = feedback
+
+                        # Prep for the loop
+                        localHistory[0] = numpy.concatenate((self.history[arrLength - backOffset][:4], prediction))
+                        localXhat = xhat
+
+                        for sample in range(1, backOffset + futureOffset):
+
+                            #print(localHistory[:sample].shape)
+                            #print(history[arrLength - (Utils.seqLength + backOffset) + sample:arrLength - backOffset + sample][:Utils.seqLength-sample].shape)
+
+                            # Set Next Value for Disturbs (Forecast)
+                            nextVal = self.history[-1][:4]
+
+                            #Concat
+                            # If Array is still got data
+                            if sample < backOffset:
+                                lh = self.history[arrLength - (Utils.seqLength + backOffset) + sample:(arrLength - backOffset) + sample]
+                                nextVal = self.history[arrLength - backOffset + sample][:4]
+                            elif sample < Utils.seqLength:
+                                lh = numpy.concatenate(
+                                    [
+                                        self.history[arrLength - (Utils.seqLength + backOffset) + sample:(arrLength - backOffset) + sample][:Utils.seqLength-sample],
+                                        localHistory[:sample]
+                                    ])
+                            else:
+                                lh = localHistory[sample-Utils.seqLength:sample]
+                            
+
+                            futurePrediction, futureFeedback = predictionFunction(lh, localXhat)
+                            
+                            # if(sample == 1):
+                            #     print(lh[-1])
+                            #     print(self.history[arrLength - backOffset + 1])
+                            #assert(sample != backOffset - 1 or lh[-1][1] == self.history[-1][1])
+
+                            
+
+                            localXhat = futureFeedback
+                            # Change Below when we can forecast
+                            localHistory[sample] = numpy.concatenate((nextVal, futurePrediction))
+
+
+                        # #forecast = yo.transpose()[-1]
+                        # forecast = localHistory[0]
+                        # forecasterErrorFromSetpoint = forecast[4] - hist[4]
+
+                        # closePoint = forecasterErrorFromSetpoint
+                        # farPoint = localHistory[-1][4] - hist[4]
+
+                        # ldiff = hist[4] - self.history[-len(localHistory)][4]
+                        # rdiff = farPoint
+
+                        # print(i, ldiff, rdiff)
+
+                        vecStart = self.history[arrLength - (Utils.seqLength + backOffset)] * Utils.ErrorWeights
+                        vecCurrent = self.history[-1] * Utils.ErrorWeights
+                        vecPrediction = localHistory[backOffset - 1] * Utils.ErrorWeights
+
+                        ldiff = vecCurrent - vecStart
+                        rdiff = vecPrediction - vecCurrent
+
+                        ldiffn = normalize(ldiff)
+                        rdiffn = normalize(rdiff)
+
+                        cosineSimilarity = (1 + numpy.dot(ldiffn, rdiffn)) * 50
+                        currentTimeError = math.sqrt(numpy.dot(rdiff, rdiff))
+
+                        print(i, cosineSimilarity, currentTimeError, vecCurrent[4:])
+
+                        # If < EPS
+                        #delta = numpy.sum(forecast - numpy.array(hist))
+
+                        # if delta < boiler.GetBoilerWaterTemp() * 0.05:
+                        #     delta = 0
+
+
+                        #preds.append(forecast)
+                        #delta = forecast - tStat
+                        #delta = delta * Utils.StateOnlyWeight[4]
+                        #warningBar.append(delta)                
+
+                    # Add
+                    self.history = self.history[1:]
+                    self.history = numpy.concatenate((self.history, [numpy.array(hist)]))
+
+
+                    # Update Everything
+                    if i == self.dlp:
+                        # Back
+                        print("Setting {}".format(i))
+                        self.boilerController.SetTarget(self.spTarg)
+
+                    if i > self.dlp:
+                        mod = math.sin(i * 0.05) * 10 #** 640 * 30
+                        self.boilerController.SetTarget(self.spTarg - math.floor(mod))
+
+                    ax.collections.clear()
+                    ax2.collections.clear()
+                    #ax.fill_between(dataHolderRt[:len(comp)], comp - (2 * err), comp + (2 * err), facecolor='blue', alpha=0.25)
+
+
+                    # Second Set
+                    #print(dataP.shape)
+                    #print(localHistory.shape)
+                    predDataP = numpy.concatenate( [dataP[:-backOffset], localHistory.transpose()[4]] )
+                    predDataT = numpy.concatenate( [dataT[:-backOffset], localHistory.transpose()[6] * 0.001] )
+                    predDataX = numpy.concatenate( [dataX[:-backOffset], localHistory.transpose()[2]] )
+                    predDataS = numpy.concatenate( [dataS[:-backOffset], localHistory.transpose()[5]] )
+                    # print("\n\n")
+                    # print(history[-1])
+                    # print(localHistory[-1])
+                    # print(boiler.GetBoilerWaterTemp())
+                    #warn2.set_xdata(numpy.arange(0, len(dataP)) * simulator.timeDilation)
+                    #warn2.set_ydata(data5)
+
+
+                    dataP = numpy.concatenate([dataP, [self.boiler.GetBoilerWaterTemp()]])
+                    dataT = numpy.concatenate([dataT, [self.boiler.boilerPercent * self.boiler.boilerPerformance * 0.001]])
+                    dataX = numpy.concatenate([dataX, [self.boilerController.temperatureSetPoint]])
+                    dataS = numpy.concatenate([dataS, [self.boiler.waterVolCurrent]])
+                    dataClose = numpy.concatenate([dataClose, [cosineSimilarity]])
+                    dataFar = numpy.concatenate([dataFar, [currentTimeError]])
+                    #dataDiff = numpy.concatenate([dataDiff, [abs(ldiff - rdiff)]])
+                    
+
+                    #removalCutter = numpy.argmax(dataP > (dataP[-1] - iTime))
+
+                    #dra.set_ydata(dataP[removalCutter:])
+                    at = max((len(dataP) - 1) - iTime, 0)
+                    dataP = dataP[at:]
+                    dataT = dataT[at:]
+                    dataS = dataS[at:]
+                    dataX = dataX[at:]
+                    dataClose = dataClose[at:]
+                    dataFar = dataFar[at:]
+                    dataDiff = dataDiff[at:]
+
+                    #predat = max((len(predDataP) - 1) - iTime, 0)
+                    predDataP = predDataP[at:]
+                    predDataS = predDataS[at:]
+                    predDataT = predDataT[at:]
+                    predDataX = predDataX[at:]
+
+
+                    dra2.set_xdata(numpy.arange(0, len(predDataP)) * self.simulator.timeDilation)
+                    dra2.set_ydata(predDataP)
+                    two2.set_xdata(numpy.arange(0, len(predDataP)) * self.simulator.timeDilation)
+                    two2.set_ydata(predDataT)
+                    three2.set_xdata(numpy.arange(0, len(predDataP)) * self.simulator.timeDilation)
+                    three2.set_ydata(predDataS)
+                    four2.set_xdata(numpy.arange(0, len(predDataP)) * self.simulator.timeDilation)
+                    four2.set_ydata(predDataX)
+
+                    
+                    dra.set_xdata(numpy.arange(0, len(dataP)) * self.simulator.timeDilation)
+                    dra.set_ydata(dataP)
+                    two.set_xdata(numpy.arange(0, len(dataP)) * self.simulator.timeDilation)
+                    two.set_ydata(dataT)
+                    three.set_xdata(numpy.arange(0, len(dataP)) * self.simulator.timeDilation)
+                    three.set_ydata(dataS)
+                    four.set_xdata(numpy.arange(0, len(dataP)) * self.simulator.timeDilation)
+                    four.set_ydata(dataX)
+                    warn.set_xdata(numpy.arange(0, len(dataP)) * self.simulator.timeDilation)
+                    warn.set_ydata(dataClose)
+                    warnfar.set_xdata(numpy.arange(0, len(dataP)) * self.simulator.timeDilation)
+                    warnfar.set_ydata(dataFar)
+                    # warndiff.set_xdata(numpy.arange(0, len(dataP)) * self.simulator.timeDilation)
+                    # warndiff.set_ydata(dataDiff)
+
+
+
+                    ax.set_xlim(left=-5, right=len(predDataP) * self.simulator.timeDilation +5)
+                    #ax2.fill_between(x, len(dataP) * self.simulator.timeDilation +5, len(predDataP) * self.simulator.timeDilation +5, facecolor='green', alpha=0.5)
+                    #ax2.fill_between(numpy.arange(0, len(dataP)) * self.simulator.timeDilation, 0, 1, where=x > (len(dataP) * self.simulator.timeDilation), facecolor='green', alpha=0.5)
+                    ax2.fill_between(numpy.arange(len(dataP) - 1, len(predDataP)) * self.simulator.timeDilation, 0, maxY, facecolor='purple', alpha=0.25)
+                    ax2.fill_between(numpy.arange(len(dataP) - (1 + backOffset), len(dataP)) * self.simulator.timeDilation, 0, maxY, facecolor='pink', alpha=0.25)
+
+                    #ax = pd.plot()
+                    fig.canvas.draw()
+                    fig.canvas.flush_events()
+
+
+                    #mod = math.cos(i * 0.1) * 10
+                    #mod = math.sin(i * 0.01) ** 640 * 30
+                    #boilerController.SetTarget(spTarg - math.floor(mod))
+
+                    #print("Update Setpoint {} -> {}°C".format(spTemp - mod, spTemp - math.floor(mod)))
+                    #print("Update Boiler Perf {}w".format(boiler.boilerPerformance))
+                    #print("Update Boiler Hist {}s".format(boiler.CurrentControlTime))
+
+                    #simulator.SetTimeDilation(20 * (i + 1))
+                    #boiler.SetBoilerPower((i + 1) * 10)
+                    # print("[TIME {:.02f}s][{:.02f}h] Average Simulation Rate (Dilated): {:.04f} hz".format((i + 1) * simulator.timeDilation, ((i + 1) * simulator.timeDilation) / 3600, simulator.ProcessAvgFramerate()))
+                    #print("[TIME {:.02f}s] Boiler Water Level is {:.03f}L @ {:.02f}°C".format((i + 1) * simulator.timeDilation, boiler.GetWaterLevel(), boiler.GetBoilerWaterTemp()))
+                    #print("[TIME {:.02f}s] Power Used: {:.02f} kWh".format((i + 1) * simulator.timeDilation, boiler.GetPowerUse() / 3600000 ))
+                    # print("[TIME {:.02f}s] Power Perc: {:.02f}%".format((i + 1) * simulator.timeDilation, boiler.boilerPercent * 100))
+                    # print("[TIME {:.02f}s] PID: {:.02f}i".format((i + 1) * simulator.timeDilation, boilerController.PID.iVal))
+                    # print("[TIME {:.02f}s] PIDdbg: {}".format((i + 1) * simulator.timeDilation, boilerController.PID.dbgLastReturn))
+
+        except Exception as e:
+            print(e)
+            pass
+        finally:
+            #simulator.Shutdown()
+            fig.savefig("SPSH_{}.png".format(self.seed))
+            #input("Press Any Key")
+            pass
+
+
+    def TestRetraining(self, predictionFunction, loopLimit, backOffset = 150, futureOffset = 0, historyLength = 450 + Utils.seqLength):
+        offsetResults = {}
+
+        for i in range(backOffset):
+            offsetResults[i] = []
+
+        xhat = self.GenerateAndSetHistory(predictionFunction, historyLength)
 
         localXhat = numpy.zeros((nVars))
         arrLength = self.history.shape[0]
@@ -127,26 +437,11 @@ class AGraphHolder():
             #stepError = numpy.abs(stepError)
             offsetResults[0].append(stepError)
 
+
+            ## Oracle
             for sample in range(1, backOffset):
-                # Set Next Value for Disturbs (Forecast)
-                nextVal = self.history[-1][:4]
+                (futurePrediction, futureFeedback), nextVal = self.CoreSample(predictionFunction, localHistory, localXhat, sample, backOffset, arrLength)
 
-                #Concat
-                # If Array is still got data
-                if sample < backOffset:
-                    lh = self.history[arrLength - (Utils.seqLength + backOffset) + sample:(arrLength - backOffset) + sample]
-                    nextVal = self.history[arrLength - backOffset + sample][:4]
-                elif sample < Utils.seqLength:
-                    lh = numpy.concatenate(
-                        [
-                            self.history[arrLength - (Utils.seqLength + backOffset) + sample:(arrLength - backOffset) + sample][:Utils.seqLength-sample],
-                            localHistory[:sample]
-                        ])
-                else:
-                    lh = localHistory[sample-Utils.seqLength:sample]
-                
-
-                futurePrediction, futureFeedback = predictionFunction(lh, localXhat)
                 localXhat = futureFeedback
 
                 # Change Below when we can forecast
@@ -157,8 +452,7 @@ class AGraphHolder():
                 offsetResults[sample].append(stepError)
 
 
-
-
+            ## Error Handling
             vecStart = self.history[arrLength - (Utils.seqLength + backOffset)] * Utils.ErrorWeights
             vecCurrent = self.history[-1] * Utils.ErrorWeights
             vecPrediction = localHistory[backOffset - 1] * Utils.ErrorWeights
@@ -207,6 +501,117 @@ class AGraphHolder():
     
         return offsetResults
 
+    def TestOffsetWidth(self, predictionFunction, loopLimit, backOffset = 150, futureOffset = 0, historyLength = 450 + Utils.seqLength):
+        offsetResults = {}
+
+        for i in range(backOffset):
+            offsetResults[i] = []
+
+        xhat = self.GenerateAndSetHistory(predictionFunction, historyLength)
+
+        localXhat = numpy.zeros((nVars))
+        arrLength = self.history.shape[0]
+
+        localHistory = numpy.zeros((backOffset + futureOffset, self.history.shape[1]))
+
+        for i in range(loopLimit):
+            # Begin Perf Timer
+            beginPerfTime = time.perf_counter()
+
+            for x in range(150):
+                self.simulator.SimulateNTicks(step * 100, 1/100)
+
+                hist = [
+                    self.boiler.waterInRatePerSecond,
+                    self.boiler.GetInflowWaterTemp(),
+                    self.boilerController.temperatureSetPoint,
+                    #spTemp,
+                    self.boiler.waterOutRatePerSecond,
+                    self.boiler.GetBoilerWaterTemp(),
+                    self.boiler.waterVolCurrent,
+                    self.boiler.boilerPerformance * self.boiler.boilerPercent
+                ]
+
+                if x == 0:
+                    prediction, feedback = predictionFunction(self.history[arrLength - (Utils.seqLength + backOffset):arrLength - backOffset], xhat)
+                                
+                    # Save this for the next iteration
+                    xhat = feedback
+
+                    # Prep for the loop
+                    localHistory[0] = numpy.concatenate((self.history[arrLength - backOffset][:4], prediction))
+                    localXhat = xhat
+
+
+
+                    stepError = self.history[arrLength - backOffset] * Utils.ErrorWeights - localHistory[0] * Utils.ErrorWeights
+                    #stepError = numpy.abs(stepError)
+                    offsetResults[0].append(stepError)
+
+
+                    ## Oracle
+                    for sample in range(1, backOffset):
+                        (futurePrediction, futureFeedback), nextVal = self.CoreSample(predictionFunction, localHistory, localXhat, sample, backOffset, arrLength)
+
+                        localXhat = futureFeedback
+
+                        # Change Below when we can forecast
+                        localHistory[sample] = numpy.concatenate((nextVal, futurePrediction))
+
+                        stepError = self.history[arrLength - backOffset + sample] * Utils.ErrorWeights - localHistory[sample] * Utils.ErrorWeights
+                        #stepError = numpy.abs(stepError)
+                        offsetResults[sample].append(stepError)
+
+
+                    ## Error Handling
+                    vecStart = self.history[arrLength - (Utils.seqLength + backOffset)] * Utils.ErrorWeights
+                    vecCurrent = self.history[-1] * Utils.ErrorWeights
+                    vecPrediction = localHistory[backOffset - 1] * Utils.ErrorWeights
+
+                    ldiff = vecCurrent - vecStart
+                    rdiff = vecPrediction - vecCurrent
+
+                    ldiffn = normalize(ldiff)
+                    rdiffn = normalize(rdiff)
+
+                    cosineSimilarity = (1 + numpy.dot(ldiffn, rdiffn)) * 50
+                    currentTimeError = math.sqrt(numpy.dot(rdiff, rdiff))
+
+                #print(i, cosineSimilarity, currentTimeError, vecCurrent[4:])
+
+                # Add
+                self.history = self.history[1:]
+                self.history = numpy.concatenate((self.history, [numpy.array(hist)]))
+
+            # Use last frame time because we want to include *this* computation in the avg
+            totalFrameTime = self.lastFrameTime
+
+            # Time for the first element
+            baseTime = self.lastUpdateTimesRt[-1]
+            self.lastUpdateTimes = numpy.concatenate([self.lastUpdateTimes, [totalFrameTime]])
+            self.lastUpdateTimesRt = numpy.concatenate([self.lastUpdateTimesRt, [totalFrameTime] + baseTime])
+
+            # Which elements are stale?
+            removalCutter = numpy.argmax(self.lastUpdateTimesRt > (baseTime - self.perfWindow))
+
+            # Update frame time list
+            self.lastUpdateTimes = self.lastUpdateTimes[removalCutter:]
+
+            # Rebase the Realtime list (Prevent accumulating large numbers)
+            holdover = self.lastUpdateTimesRt[removalCutter]
+            self.lastUpdateTimesRt = self.lastUpdateTimesRt[removalCutter:] - holdover
+
+
+
+            if i % 10 == 0:
+                print("{} - ETA: {:.2f}s. Rate: {:.2f} eops. (Covering {:.2f}s)".format(i, (loopLimit - i) / self.ProcessAvgFramerate(), self.ProcessAvgFramerate() * backOffset, self.ProcessAvgFramerate() * Utils.dilation * Utils.step))
+
+            # Perf Timers
+            endPerfTime = time.perf_counter()
+            self.lastFrameTime = endPerfTime - beginPerfTime
+    
+        return offsetResults
+
 
     def LiveUpdate(self, maxY, solvedSize, TargetDPI, iTime, color, predictionFunction, loopLimit, labelOverrides=None, label2Overrides=None, backOffset = 15, futureOffset = 15, historyLength = 450 + Utils.seqLength):
         dataP = []
@@ -225,34 +630,14 @@ class AGraphHolder():
 
 
         ##### Actually do the loop!
-        xhat = numpy.zeros((nVars))
+        # xhat = numpy.zeros((nVars))
 
         print("Generating Pre Run History")
 
-        for i in range(historyLength):
-            self.simulator.SimulateNTicks(step * 100, 1/100)
+        xhat = self.GenerateAndSetHistory(predictionFunction, historyLength)
 
-            # Add
-            hist = [
-                self.boiler.waterInRatePerSecond,
-                self.boiler.GetInflowWaterTemp(),
-                self.boilerController.temperatureSetPoint,
-                self.boiler.waterOutRatePerSecond,
-                self.boiler.GetBoilerWaterTemp(),
-                self.boiler.waterVolCurrent,
-                self.boiler.boilerPerformance * self.boiler.boilerPercent
-            ]
-            self.history.append(numpy.array(hist))
-
-            # # Skip first loop, it's not valid for all predictions
-            # if i > 0:
-            #     _, xhat = predictionFunction( numpy.array(self.history)[-4:], xhat)
-            #     print(xhat)
-        
-        self.history = numpy.array(self.history)
-
-        tempHist = Utils.TailState(self.history.transpose(), Utils.offset).transpose()
-        _, xhat = predictionFunction(tempHist, xhat)
+        # tempHist = Utils.TailState(self.history.transpose(), Utils.offset).transpose()
+        # _, xhat = predictionFunction(tempHist, xhat)
 
 
         warningBar = []
