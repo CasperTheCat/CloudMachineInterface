@@ -6,7 +6,9 @@ import numpy
 import math
 import unicodedata
 import re
+import modred
 import pickle
+import control
 import matplotlib
 import matplotlib.pyplot
 import pandas
@@ -436,3 +438,92 @@ def MakeCSV(x, outpath):
     hey = pandas.DataFrame(x)
 
     hey.to_csv(outpath)
+
+
+def DistanceImagToPole(x):
+    rScale = x.real
+    iScale = x.imag
+
+    distSq = rScale * rScale + iScale * iScale
+
+    return numpy.sqrt(distSq)
+
+def DistanceToZero(x):
+    #dSq = numpy.power(x, 2)
+    accumDist = 0
+
+    for i in x:
+        ds = DistanceImagToPole(i)
+        accumDist += 1 if ds > 1 else ds # ds
+
+    return accumDist
+
+# Generates a low number when close to zero
+def GetFitness(x):
+    return DistanceToZero(x)
+
+def CreateOKIDERA(l1, l2, i, step, dilation):
+    #l1 = numpy.flip(l1, 1) 
+    #l2 = numpy.flip(l2, 1) 
+    kalman = modred.OKID(l1, l2, i)
+    era = modred.ERA()
+    a,b,c = era.compute_model(kalman, 20000)
+    #b *= 1/step
+    #a,b,c = modred.era.compute_ERA_model(kalman, 1500)
+
+    # print("Mats")
+    # #print(a)
+    # #print(b)
+    # print(c)
+    # print(c == numpy.identity(4))
+    # print()
+
+    c = numpy.identity(3) * 0.5 + c * 0.5
+
+    # Some *real* asserts
+    assert(a.shape != (0,0))
+    assert(b.shape != (0,0))
+    assert(c.shape != (0,0))
+    #@c = numpy.identity(3)
+
+    ### Test Asserts
+    # assert(a.shape == (3,3))
+    # assert(b.shape == (3,4))
+    # assert(c.shape == (3,3))
+
+    newScore = GetFitness(numpy.linalg.eigvals(a))
+    print(newScore)
+
+    asb = control.ss(a,b,c, numpy.zeros((c.shape[0], b.shape[1])), step)
+    poles = control.pole(asb)
+    score = GetFitness(poles)
+
+    return asb, score
+
+def GetBestOKID(l1, l2, minmcs=0, markovs=20):
+    bestIndex = 0
+    #bestScore = 1 # Unstable above 1
+    bestScore = 5# Allow at least 1 failed pole
+
+    for i in range(minmcs, markovs):
+        #print("Attempting to get {} markovs ({}/{})".format(i,i-minmcs,markovs-minmcs))
+        try:
+            asb, score = CreateOKIDERA(l1,l2,i,step,dilation)
+
+            #print("{} scored {}".format(i, score))
+            
+            if score < bestScore:
+                bestIndex = i
+                bestScore = score
+
+                # Async start the process
+
+        
+        except Exception as e:
+            #print("Fail on {}. {}".format(i,e))
+            pass
+
+
+    #print("Using {} markovs".format(bestIndex))
+
+    return CreateOKIDERA(l1, l2 ,bestIndex, step, dilation)
