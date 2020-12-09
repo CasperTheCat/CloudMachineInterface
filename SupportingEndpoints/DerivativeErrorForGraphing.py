@@ -35,6 +35,9 @@ for i in CT_Stab.keys():
 ## Flip said array
 arrayOfThings = numpy.array(arrayOfThings).transpose()
 
+print(arrayOfThings.shape)
+exit()
+
 ## Switch Y and Z
 arrayOfThings = numpy.swapaxes(arrayOfThings, 1, 2)
 

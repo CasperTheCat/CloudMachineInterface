@@ -91,14 +91,14 @@ def ML_EvalFunction(history, feedback):
 
 graphing = Graphing.AGraphHolder(seed, spTemp, spTarg, dlp)
 
-results = graphing.TestOffsetWidth(EvalFunction, 500)
+results = graphing.TestOffsetWidth(EvalFunction, 300)
 
 with open("backtrackStab.dat", "wb+") as f:
     pickle.dump(results, f)
 
 del results
 
-mlresults = graphing.TestOffsetWidth(ML_EvalFunction, 25)
+# mlresults = graphing.TestOffsetWidth(ML_EvalFunction, 50)
 
-with open("backtrackStabWithML.dat", "wb+") as f:
-    pickle.dump(mlresults, f)
+# with open("backtrackStabWithML.dat", "wb+") as f:
+#     pickle.dump(mlresults, f)

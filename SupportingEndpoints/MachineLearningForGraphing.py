@@ -99,29 +99,31 @@ forecastmodel = keras.Sequential(
 # model.add(layers.LSTM(128))
 # model.add(layers.Dense(10))
 
-predmodel = keras.Sequential(
-    [
-        #layers.Embedding(input_shape=(100, 3), output_dim=128),
-        layers.Input(shape=(seqLength, states.shape[2] + disturbs.shape[2])),
-        # layers.LSTM(1024, return_sequences=True),
-        # layers.Dropout(0.1),
-        # layers.LSTM(1024, return_sequences=True),
-        #layers.GRU(64, return_sequences=True),
-        #layers.LSTM(128, return_sequences=True),
-        layers.GRU(256, return_sequences=True),
-        layers.GRU(256, return_sequences=True),
-        layers.GRU(256, return_sequences=True),
-        layers.GRU(256, return_sequences=True),
-        #layers.LSTM(1024, return_sequences=False),
-        layers.Dropout(0.1),
-        layers.GRU(256, return_sequences=False),
-        #layers.LSTM(64, return_sequences=True),
-        #layers.LSTM(64, return_sequences=True),
+predmodel = Utils.GenerateModel(disturbs, states)
+
+# predmodel = keras.Sequential(
+#     [
+#         #layers.Embedding(input_shape=(100, 3), output_dim=128),
+#         layers.Input(shape=(seqLength, states.shape[2] + disturbs.shape[2])),
+#         # layers.LSTM(1024, return_sequences=True),
+#         # layers.Dropout(0.1),
+#         # layers.LSTM(1024, return_sequences=True),
+#         #layers.GRU(64, return_sequences=True),
+#         #layers.LSTM(128, return_sequences=True),
+#         layers.GRU(256, return_sequences=True),
+#         layers.GRU(256, return_sequences=True),
+#         layers.GRU(256, return_sequences=True),
+#         layers.GRU(256, return_sequences=True),
+#         #layers.LSTM(1024, return_sequences=False),
+#         layers.Dropout(0.1),
+#         layers.GRU(256, return_sequences=False),
+#         #layers.LSTM(64, return_sequences=True),
+#         #layers.LSTM(64, return_sequences=True),
         
-        layers.Dense(256, activation='relu'),
-        layers.Dense(states.shape[2])
-    ]
-)
+#         layers.Dense(256, activation='relu'),
+#         layers.Dense(states.shape[2])
+#     ]
+# )
 
 forecastmodel.compile(
     #loss=keras.losses.SparseCategoricalCrossentropy(from_logits=True),
@@ -130,12 +132,12 @@ forecastmodel.compile(
     #metrics=["accuracy"],
 )
 
-predmodel.compile(
-    #loss=keras.losses.SparseCategoricalCrossentropy(from_logits=True),
-    loss="mse",
-    optimizer=keras.optimizers.Adam(learning_rate=0.001),
-    #metrics=["accuracy"],
-)
+# predmodel.compile(
+#     #loss=keras.losses.SparseCategoricalCrossentropy(from_logits=True),
+#     loss="mse",
+#     optimizer=keras.optimizers.Adam(learning_rate=0.001),
+#     #metrics=["accuracy"],
+# )
 
 
 predmodel.summary()

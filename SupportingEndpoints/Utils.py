@@ -13,6 +13,9 @@ import matplotlib
 import matplotlib.pyplot
 import pandas
 import os
+import tensorflow as tf
+from tensorflow import keras
+from tensorflow.keras import layers
 
 dilation = 1#(1/4) * (1/5)
 seqLength = 300#5 * 12
@@ -462,6 +465,39 @@ def DistanceToZero(x):
 def GetFitness(x):
     return DistanceToZero(x)
 
+
+def GenerateModel(disturbs, states):
+    predmodel = keras.Sequential(
+    [
+        #layers.Embedding(input_shape=(100, 3), output_dim=128),
+        layers.Input(shape=(seqLength, states.shape[2] + disturbs.shape[2])),
+        # layers.LSTM(1024, return_sequences=True),
+        # layers.Dropout(0.1),
+        # layers.LSTM(1024, return_sequences=True),
+        #layers.GRU(64, return_sequences=True),
+        #layers.LSTM(128, return_sequences=True),
+        layers.GRU(256, return_sequences=True),
+        layers.GRU(256, return_sequences=True),
+        layers.GRU(256, return_sequences=True),
+        layers.GRU(256, return_sequences=True),
+        #layers.LSTM(1024, return_sequences=False),
+        layers.Dropout(0.1),
+        layers.GRU(256, return_sequences=False),
+        #layers.LSTM(64, return_sequences=True),
+        #layers.LSTM(64, return_sequences=True),
+        
+        layers.Dense(256, activation='relu'),
+        layers.Dense(states.shape[2])
+    ])
+
+    predmodel.compile(
+    #loss=keras.losses.SparseCategoricalCrossentropy(from_logits=True),
+    loss="mse",
+    optimizer=keras.optimizers.Adam(learning_rate=0.001)
+    )
+
+    return predmodel
+
 def CreateOKIDERA(l1, l2, i, step, dilation):
     #l1 = numpy.flip(l1, 1) 
     #l2 = numpy.flip(l2, 1) 
@@ -478,7 +514,7 @@ def CreateOKIDERA(l1, l2, i, step, dilation):
     # print(c == numpy.identity(4))
     # print()
 
-    c = numpy.identity(3) * 0.5 + c * 0.5
+    #c = numpy.identity(3) * 0.5 + c * 0.5
 
     # Some *real* asserts
     assert(a.shape != (0,0))

@@ -109,7 +109,7 @@ class AGraphHolder():
 
         return predictionFunction(lh, localXhat), nextVal
 
-    def TestRetrainLive(self, maxY, solvedSize, TargetDPI, iTime, color, predictionFunction, loopLimit, labelOverrides=None, label2Overrides=None, backOffset = 15, futureOffset = 15, historyLength = 450 + Utils.seqLength):
+    def TestRetrainLive(self, maxY, solvedSize, TargetDPI, iTime, color, predictionFunction, retrainCallback, thresholdFunction, loopLimit, labelOverrides=None, label2Overrides=None, backOffset = 15, futureOffset = 15, historyLength = 1000 + Utils.seqLength):
         dataP = []
         dataT = []
         dataS = []
@@ -118,6 +118,8 @@ class AGraphHolder():
         dataFar = []
         dataDiff = []
 
+        errorTracking = 0.0
+        absErrorTracking = 0.0
 
         fig, ax, ax2, packedAxis1, packedAxis2 = MakeLiveMap(maxY, solvedSize, TargetDPI, iTime, color, labelOverrides=labelOverrides, label2Overrides=label2Overrides)
 
@@ -144,6 +146,7 @@ class AGraphHolder():
         # xhat[1] = hist[5]
         # xhat[2] = hist[6]
         localXhat = numpy.zeros((nVars))
+        
 
         #!!!
         #self.boilerController.SetDisableDisturbance()
@@ -151,6 +154,7 @@ class AGraphHolder():
         arrLength = self.history.shape[0]
 
         localHistory = numpy.zeros((backOffset + futureOffset, self.history.shape[1]))
+        stepErrorOracle = numpy.zeros((backOffset))# + futureOffset, self.history.shape[1]))
 
         try:
             for i in range(loopLimit):
@@ -188,42 +192,23 @@ class AGraphHolder():
                         localHistory[0] = numpy.concatenate((self.history[arrLength - backOffset][:4], prediction))
                         localXhat = xhat
 
-                        for sample in range(1, backOffset + futureOffset):
+                        stepError = self.history[arrLength - backOffset] * Utils.ErrorWeights - localHistory[0] * Utils.ErrorWeights
+                        stepErrorOracle[0] = numpy.abs(numpy.sum(stepError))
 
+                        for sample in range(1, backOffset + futureOffset):
                             #print(localHistory[:sample].shape)
                             #print(history[arrLength - (Utils.seqLength + backOffset) + sample:arrLength - backOffset + sample][:Utils.seqLength-sample].shape)
 
-                            # Set Next Value for Disturbs (Forecast)
-                            nextVal = self.history[-1][:4]
-
-                            #Concat
-                            # If Array is still got data
-                            if sample < backOffset:
-                                lh = self.history[arrLength - (Utils.seqLength + backOffset) + sample:(arrLength - backOffset) + sample]
-                                nextVal = self.history[arrLength - backOffset + sample][:4]
-                            elif sample < Utils.seqLength:
-                                lh = numpy.concatenate(
-                                    [
-                                        self.history[arrLength - (Utils.seqLength + backOffset) + sample:(arrLength - backOffset) + sample][:Utils.seqLength-sample],
-                                        localHistory[:sample]
-                                    ])
-                            else:
-                                lh = localHistory[sample-Utils.seqLength:sample]
-                            
-
-                            futurePrediction, futureFeedback = predictionFunction(lh, localXhat)
-                            
-                            # if(sample == 1):
-                            #     print(lh[-1])
-                            #     print(self.history[arrLength - backOffset + 1])
-                            #assert(sample != backOffset - 1 or lh[-1][1] == self.history[-1][1])
-
-                            
+                            (futurePrediction, futureFeedback), nextVal = self.CoreSample(predictionFunction, localHistory, localXhat, sample, backOffset, arrLength)
 
                             localXhat = futureFeedback
+
                             # Change Below when we can forecast
                             localHistory[sample] = numpy.concatenate((nextVal, futurePrediction))
 
+                            if sample < backOffset:
+                                stepError = self.history[arrLength - backOffset + sample] * Utils.ErrorWeights - localHistory[sample] * Utils.ErrorWeights
+                                stepErrorOracle[sample] = numpy.abs(numpy.sum(stepError))
 
                         # #forecast = yo.transpose()[-1]
                         # forecast = localHistory[0]
@@ -237,20 +222,6 @@ class AGraphHolder():
 
                         # print(i, ldiff, rdiff)
 
-                        vecStart = self.history[arrLength - (Utils.seqLength + backOffset)] * Utils.ErrorWeights
-                        vecCurrent = self.history[-1] * Utils.ErrorWeights
-                        vecPrediction = localHistory[backOffset - 1] * Utils.ErrorWeights
-
-                        ldiff = vecCurrent - vecStart
-                        rdiff = vecPrediction - vecCurrent
-
-                        ldiffn = normalize(ldiff)
-                        rdiffn = normalize(rdiff)
-
-                        cosineSimilarity = (1 + numpy.dot(ldiffn, rdiffn)) * 50
-                        currentTimeError = math.sqrt(numpy.dot(rdiff, rdiff))
-
-                        print(i, cosineSimilarity, currentTimeError, vecCurrent[4:])
 
                         # If < EPS
                         #delta = numpy.sum(forecast - numpy.array(hist))
@@ -263,6 +234,16 @@ class AGraphHolder():
                         #delta = forecast - tStat
                         #delta = delta * Utils.StateOnlyWeight[4]
                         #warningBar.append(delta)                
+
+                        # ERROR
+                        errorTracking += stepError
+                        absErrorTracking += abs(stepError)
+
+                        # Do we need to retrain?
+                        if thresholdFunction(errorTracking, absErrorTracking):
+                            retrainCallback(self.history)
+                            errorTracking = 0.0
+                            absErrorTracking = 0.0
 
                     # Add
                     self.history = self.history[1:]
@@ -291,6 +272,9 @@ class AGraphHolder():
                     predDataT = numpy.concatenate( [dataT[:-backOffset], localHistory.transpose()[6] * 0.001] )
                     predDataX = numpy.concatenate( [dataX[:-backOffset], localHistory.transpose()[2]] )
                     predDataS = numpy.concatenate( [dataS[:-backOffset], localHistory.transpose()[5]] )
+                    offsetVal = 0 if len(dataClose) == 0 else dataClose[-1]
+                    print(offsetVal)
+                    predClose = numpy.concatenate( [dataClose[:-backOffset], (numpy.cumsum(stepErrorOracle)) * 0.01 + offsetVal] )
                     # print("\n\n")
                     # print(history[-1])
                     # print(localHistory[-1])
@@ -303,8 +287,8 @@ class AGraphHolder():
                     dataT = numpy.concatenate([dataT, [self.boiler.boilerPercent * self.boiler.boilerPerformance * 0.001]])
                     dataX = numpy.concatenate([dataX, [self.boilerController.temperatureSetPoint]])
                     dataS = numpy.concatenate([dataS, [self.boiler.waterVolCurrent]])
-                    dataClose = numpy.concatenate([dataClose, [cosineSimilarity]])
-                    dataFar = numpy.concatenate([dataFar, [currentTimeError]])
+                    dataClose = numpy.concatenate([dataClose, [numpy.sum(absErrorTracking) * 0.01]])
+                    dataFar = numpy.concatenate([dataFar, [0]])
                     #dataDiff = numpy.concatenate([dataDiff, [abs(ldiff - rdiff)]])
                     
 
@@ -325,6 +309,7 @@ class AGraphHolder():
                     predDataS = predDataS[at:]
                     predDataT = predDataT[at:]
                     predDataX = predDataX[at:]
+                    predClose = predClose[at:]
 
 
                     dra2.set_xdata(numpy.arange(0, len(predDataP)) * self.simulator.timeDilation)
@@ -335,6 +320,8 @@ class AGraphHolder():
                     three2.set_ydata(predDataS)
                     four2.set_xdata(numpy.arange(0, len(predDataP)) * self.simulator.timeDilation)
                     four2.set_ydata(predDataX)
+                    warn2.set_xdata(numpy.arange(0, len(predClose)) * self.simulator.timeDilation)
+                    warn2.set_ydata(predClose)
 
                     
                     dra.set_xdata(numpy.arange(0, len(dataP)) * self.simulator.timeDilation)
@@ -383,17 +370,19 @@ class AGraphHolder():
                     # print("[TIME {:.02f}s] PIDdbg: {}".format((i + 1) * simulator.timeDilation, boilerController.PID.dbgLastReturn))
 
         except Exception as e:
-            print(e)
+            raise(e)
             pass
         finally:
             #simulator.Shutdown()
-            fig.savefig("SPSH_{}.png".format(self.seed))
+            #fig.savefig("SPSH_{}.png".format(self.seed))
             #input("Press Any Key")
             pass
 
-
-    def TestRetraining(self, predictionFunction, loopLimit, backOffset = 150, futureOffset = 0, historyLength = 450 + Utils.seqLength):
+    def TestRetraining(self, predictionFunction, retrainCallback, thresholdFunction, loopLimit, backOffset = 1, futureOffset = 0, historyLength = 1000 + Utils.seqLength):
         offsetResults = {}
+        retrainError={}
+        errorTracking = 0.0
+        absErrorTracking = 0.0
 
         for i in range(backOffset):
             offsetResults[i] = []
@@ -451,22 +440,20 @@ class AGraphHolder():
                 #stepError = numpy.abs(stepError)
                 offsetResults[sample].append(stepError)
 
-
-            ## Error Handling
-            vecStart = self.history[arrLength - (Utils.seqLength + backOffset)] * Utils.ErrorWeights
-            vecCurrent = self.history[-1] * Utils.ErrorWeights
-            vecPrediction = localHistory[backOffset - 1] * Utils.ErrorWeights
-
-            ldiff = vecCurrent - vecStart
-            rdiff = vecPrediction - vecCurrent
-
-            ldiffn = normalize(ldiff)
-            rdiffn = normalize(rdiff)
-
-            cosineSimilarity = (1 + numpy.dot(ldiffn, rdiffn)) * 50
-            currentTimeError = math.sqrt(numpy.dot(rdiff, rdiff))
-
             #print(i, cosineSimilarity, currentTimeError, vecCurrent[4:])
+
+            # ERROR
+            errorTracking += stepError
+            absErrorTracking += abs(stepError)
+
+            retrainError[i] = [numpy.sum(errorTracking), numpy.sum(absErrorTracking), numpy.sum(stepError)]
+
+            # Do we need to retrain?
+            if thresholdFunction(errorTracking, absErrorTracking):
+                print("\tError {} at {}. Retrain.".format(absErrorTracking, i))
+                retrainCallback(self.history)
+                errorTracking = 0.0
+                absErrorTracking = 0.0
 
             # Add
             self.history = self.history[1:]
@@ -499,7 +486,7 @@ class AGraphHolder():
             endPerfTime = time.perf_counter()
             self.lastFrameTime = endPerfTime - beginPerfTime
     
-        return offsetResults
+        return offsetResults, retrainError
 
     def TestOffsetWidth(self, predictionFunction, loopLimit, backOffset = 150, futureOffset = 0, historyLength = 450 + Utils.seqLength):
         offsetResults = {}
@@ -611,7 +598,6 @@ class AGraphHolder():
             self.lastFrameTime = endPerfTime - beginPerfTime
     
         return offsetResults
-
 
     def LiveUpdate(self, maxY, solvedSize, TargetDPI, iTime, color, predictionFunction, loopLimit, labelOverrides=None, label2Overrides=None, backOffset = 15, futureOffset = 15, historyLength = 450 + Utils.seqLength):
         dataP = []

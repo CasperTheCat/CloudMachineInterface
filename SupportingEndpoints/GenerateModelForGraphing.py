@@ -155,6 +155,8 @@ def CreateOKIDERA(l1, l2, i, step, dilation):
 
 
 
+print(l1.shape)
+
 
 for i in range(minmcs, markovs):
     print("Attempting to get {} markovs ({}/{})".format(i,i-minmcs,markovs-minmcs))
