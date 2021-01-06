@@ -51,7 +51,9 @@ class AGraphHolder():
 
         comp = numpy.convolve(self.lastUpdateTimes, numpy.ones((realWindow,))/realWindow, mode='valid')
 
-        return 1 / numpy.mean(comp)
+        nmc = numpy.mean(comp)
+
+        return ((1 / nmc) if nmc != 0 else 0)
 
     def GenerateAndSetHistory(self, predictionFunction, historyLength):
         self.history = []
@@ -81,14 +83,14 @@ class AGraphHolder():
         self.history = numpy.array(self.history)
 
         tempHist = Utils.TailState(self.history.transpose(), Utils.offset).transpose()
-        _, xhat = predictionFunction(tempHist, xhat)
+        _, xhat = predictionFunction(tempHist, xhat, 0)
 
         return xhat
 
     def CoreLoop(self, loopLimit):
         return None
 
-    def CoreSample(self, predictionFunction, localHistory, localXhat, sample, backOffset, arrLength):
+    def CoreSample(self, predictionFunction, localHistory, localXhat, sample, backOffset, arrLength, i, flt=None):
         # Set Next Value for Disturbs (Forecast)
         nextVal = self.history[-1][:4]
 
@@ -106,10 +108,12 @@ class AGraphHolder():
         else:
             lh = localHistory[sample-Utils.seqLength:sample]
         
+        if(flt):
+            return predictionFunction(flt(lh), localXhat, i), nextVal
+        else:
+            return predictionFunction(lh, localXhat, i), nextVal
 
-        return predictionFunction(lh, localXhat), nextVal
-
-    def TestRetrainLive(self, maxY, solvedSize, TargetDPI, iTime, color, predictionFunction, retrainCallback, thresholdFunction, loopLimit, labelOverrides=None, label2Overrides=None, backOffset = 15, futureOffset = 15, historyLength = 1000 + Utils.seqLength):
+    def TestRetrainLive(self, maxY, solvedSize, TargetDPI, iTime, color, predictionFunction, retrainCallback, thresholdFunction, loopLimit, labelOverrides=None, label2Overrides=None, backOffset = 15, futureOffset = 15, historyLength = 1000 + Utils.seqLength, detectorFunction=None, filterFunction=None, retrainFilter=None):
         dataP = []
         dataT = []
         dataS = []
@@ -183,7 +187,10 @@ class AGraphHolder():
                         # When it's behind, it lags the live changes and fails to predict
                         #prediction, feedback = predictionFunction(self.history[arrLength - (Utils.seqLength + backOffset):arrLength - backOffset], xhat)
 
-                        prediction, feedback = predictionFunction(self.history[arrLength - (Utils.seqLength + backOffset):arrLength - backOffset], xhat)
+                        if (filterFunction):
+                            prediction, feedback = predictionFunction(filterFunction(self.history[arrLength - (Utils.seqLength + backOffset):arrLength - backOffset]), xhat, i)
+                        else:
+                            prediction, feedback = predictionFunction(self.history[arrLength - (Utils.seqLength + backOffset):arrLength - backOffset], xhat, i)
                         
                         # Save this for the next iteration
                         xhat = feedback
@@ -199,7 +206,7 @@ class AGraphHolder():
                             #print(localHistory[:sample].shape)
                             #print(history[arrLength - (Utils.seqLength + backOffset) + sample:arrLength - backOffset + sample][:Utils.seqLength-sample].shape)
 
-                            (futurePrediction, futureFeedback), nextVal = self.CoreSample(predictionFunction, localHistory, localXhat, sample, backOffset, arrLength)
+                            (futurePrediction, futureFeedback), nextVal = self.CoreSample(predictionFunction, localHistory, localXhat, sample, backOffset, arrLength, i+sample, flt=filterFunction)
 
                             localXhat = futureFeedback
 
@@ -233,7 +240,11 @@ class AGraphHolder():
                         #preds.append(forecast)
                         #delta = forecast - tStat
                         #delta = delta * Utils.StateOnlyWeight[4]
-                        #warningBar.append(delta)                
+                        #warningBar.append(delta)          
+                        
+                        ## Detector
+                        if (detectorFunction):
+                            detectorFunction(self.history[arrLength - (Utils.seqLength + backOffset):arrLength - backOffset], xhat, i)      
 
                         # ERROR
                         errorTracking += stepError
@@ -241,7 +252,10 @@ class AGraphHolder():
 
                         # Do we need to retrain?
                         if thresholdFunction(errorTracking, absErrorTracking):
-                            retrainCallback(self.history)
+                            if(retrainFilter):
+                                retrainCallback(retrainFilter(self.history))
+                            else:
+                                retrainCallback(self.history)
                             errorTracking = 0.0
                             absErrorTracking = 0.0
 
@@ -295,7 +309,7 @@ class AGraphHolder():
                     #removalCutter = numpy.argmax(dataP > (dataP[-1] - iTime))
 
                     #dra.set_ydata(dataP[removalCutter:])
-                    at = max((len(dataP) - 1) - iTime, 0)
+                    at = 0#max((len(dataP) - 1) - iTime, 0)
                     dataP = dataP[at:]
                     dataT = dataT[at:]
                     dataS = dataS[at:]
@@ -378,7 +392,7 @@ class AGraphHolder():
             #input("Press Any Key")
             pass
 
-    def TestRetraining(self, predictionFunction, retrainCallback, thresholdFunction, loopLimit, backOffset = 1, futureOffset = 0, historyLength = 1000 + Utils.seqLength):
+    def TestRetraining(self, predictionFunction, retrainCallback, thresholdFunction, loopLimit, backOffset = 1, futureOffset = 0, historyLength = 1000 + Utils.seqLength, detectorFunction=None, filterFunction=None, retrainFilter=None):
         offsetResults = {}
         retrainError={}
         errorTracking = 0.0
@@ -411,7 +425,11 @@ class AGraphHolder():
                 self.boiler.boilerPerformance * self.boiler.boilerPercent
             ]
 
-            prediction, feedback = predictionFunction(self.history[arrLength - (Utils.seqLength + backOffset):arrLength - backOffset], xhat)
+            if (filterFunction):
+                prediction, feedback = predictionFunction(filterFunction(self.history[arrLength - (Utils.seqLength + backOffset):arrLength - backOffset], timeBase=i), xhat, i)
+            else:
+                prediction, feedback = predictionFunction(self.history[arrLength - (Utils.seqLength + backOffset):arrLength - backOffset], xhat, i)
+            #prediction, feedback = predictionFunction(self.history[arrLength - (Utils.seqLength + backOffset):arrLength - backOffset], xhat, i)
                         
             # Save this for the next iteration
             xhat = feedback
@@ -426,10 +444,9 @@ class AGraphHolder():
             #stepError = numpy.abs(stepError)
             offsetResults[0].append(stepError)
 
-
             ## Oracle
             for sample in range(1, backOffset):
-                (futurePrediction, futureFeedback), nextVal = self.CoreSample(predictionFunction, localHistory, localXhat, sample, backOffset, arrLength)
+                (futurePrediction, futureFeedback), nextVal = self.CoreSample(predictionFunction, filterFunction(localHistory, timeBase=i+sample), localXhat, sample, backOffset, arrLength, i+sample, flt=filterFunction)
 
                 localXhat = futureFeedback
 
@@ -442,6 +459,10 @@ class AGraphHolder():
 
             #print(i, cosineSimilarity, currentTimeError, vecCurrent[4:])
 
+            ## Detector
+            if (detectorFunction):
+                detectorFunction(self.history[arrLength - (Utils.seqLength + backOffset):arrLength - backOffset], xhat, i)
+
             # ERROR
             errorTracking += stepError
             absErrorTracking += abs(stepError)
@@ -451,7 +472,11 @@ class AGraphHolder():
             # Do we need to retrain?
             if thresholdFunction(errorTracking, absErrorTracking):
                 print("\tError {} at {}. Retrain.".format(absErrorTracking, i))
-                retrainCallback(self.history)
+                if(retrainFilter):
+                    retrainCallback(retrainFilter(self.history))
+                else:
+                    retrainCallback(self.history)
+                #retrainCallback(self.history)
                 errorTracking = 0.0
                 absErrorTracking = 0.0
 
@@ -480,7 +505,20 @@ class AGraphHolder():
 
 
             if i % 10 == 0:
-                print("{} - ETA: {:.2f}s. Rate: {:.2f} eops. (Covering {:.2f}s)".format(i, (loopLimit - i) / self.ProcessAvgFramerate(), self.ProcessAvgFramerate() * backOffset, self.ProcessAvgFramerate() * Utils.dilation * Utils.step))
+                framerate = self.ProcessAvgFramerate()
+                if (framerate != 0):
+                    print("{} - ETA: {:.2f}s. Rate: {:.2f} eops. (Covering {:.2f}s)".format(
+                        i,
+                        (loopLimit - i) / framerate,
+                        framerate * backOffset,
+                        framerate * Utils.dilation * Utils.step
+                    ))
+                else:
+                    print("{} - ETA: INF. Rate: {:.2f} eops. (Covering {:.2f}s)".format(
+                        i,
+                        framerate * backOffset,
+                        framerate * Utils.dilation * Utils.step
+                    ))
 
             # Perf Timers
             endPerfTime = time.perf_counter()
@@ -520,7 +558,7 @@ class AGraphHolder():
                 ]
 
                 if x == 0:
-                    prediction, feedback = predictionFunction(self.history[arrLength - (Utils.seqLength + backOffset):arrLength - backOffset], xhat)
+                    prediction, feedback = predictionFunction(self.history[arrLength - (Utils.seqLength + backOffset):arrLength - backOffset], xhat, i*150+x)
                                 
                     # Save this for the next iteration
                     xhat = feedback
@@ -538,7 +576,7 @@ class AGraphHolder():
 
                     ## Oracle
                     for sample in range(1, backOffset):
-                        (futurePrediction, futureFeedback), nextVal = self.CoreSample(predictionFunction, localHistory, localXhat, sample, backOffset, arrLength)
+                        (futurePrediction, futureFeedback), nextVal = self.CoreSample(predictionFunction, localHistory, localXhat, sample, backOffset, arrLength, i*150+x)
 
                         localXhat = futureFeedback
 
@@ -669,7 +707,7 @@ class AGraphHolder():
                         # When it's behind, it lags the live changes and fails to predict
                         #prediction, feedback = predictionFunction(self.history[arrLength - (Utils.seqLength + backOffset):arrLength - backOffset], xhat)
 
-                        prediction, feedback = predictionFunction(self.history[arrLength - (Utils.seqLength + backOffset):arrLength - backOffset], xhat)
+                        prediction, feedback = predictionFunction(self.history[arrLength - (Utils.seqLength + backOffset):arrLength - backOffset], xhat, i)
                         
                         # Save this for the next iteration
                         xhat = feedback
@@ -701,7 +739,7 @@ class AGraphHolder():
                                 lh = localHistory[sample-Utils.seqLength:sample]
                             
 
-                            futurePrediction, futureFeedback = predictionFunction(lh, localXhat)
+                            futurePrediction, futureFeedback = predictionFunction(lh, localXhat, i + sample)
                             
                             # if(sample == 1):
                             #     print(lh[-1])

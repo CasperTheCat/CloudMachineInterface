@@ -82,7 +82,12 @@ stepsSinceLastTrain = 0
 rtTimes = 0
 tholdRTTimes = 0
 
-def EvalFunction(history, feedback):
+
+
+#####
+## 
+
+def EvalFunction(history, feedback, i):
     _, yo, xo = control.forced_response(
         model,
         numpy.arange(0, history.shape[0]) * step,
@@ -98,28 +103,6 @@ def EvalFunction(history, feedback):
 
     # return output, xo.transpose()[0]
     return yo.transpose()[-1], xo.transpose()[1]
-
-def ML_EvalFunction(history, feedback):
-    ytest = numpy.expand_dims(history[:Utils.seqLength], 0)
-    forecast = predmodel.predict(ytest)
-    forebar = tf.squeeze(forecast, 0).numpy()
-
-    return forebar, []
-
-def ThresholdFunction(signedError, absoluteError):
-    global stepsSinceLastTrain
-    global tholdRTTimes
-
-    # Fixed step. Can be rolled into the return bool
-    # But it's here to be readable
-    if (stepsSinceLastTrain * Utils.dilation > 100):
-        stepsSinceLastTrain = 0
-        tholdRTTimes += 1
-        return True
-
-    stepsSinceLastTrain += 1
-
-    return numpy.sum(absoluteError) > 1000
 
 def RetrainFunction(history):
     global cost
@@ -139,6 +122,19 @@ def RetrainFunction(history):
 
     timePassed = time.perf_counter() - beginPerfTime
     cost += timePassed
+
+def BaseEvalFunction(history, feedback, i):
+    return history[-1][4:], []
+
+def BaseRetrainFunction(history):
+    pass    
+
+def ML_EvalFunction(history, feedback, i):
+    ytest = numpy.expand_dims(history[:Utils.seqLength], 0)
+    forecast = predmodel.predict(ytest)
+    forebar = tf.squeeze(forecast, 0).numpy()
+
+    return forebar, []
 
 def ML_RetrainFunction(history):
     global cost
@@ -175,10 +171,28 @@ def ML_RetrainFunction(history):
     timePassed = time.perf_counter() - beginPerfTime
     cost += timePassed
 
+
+def ThresholdFunction(signedError, absoluteError):
+    global stepsSinceLastTrain
+    global tholdRTTimes
+
+    # Fixed step. Can be rolled into the return bool
+    # But it's here to be readable
+    if (stepsSinceLastTrain * Utils.dilation > 100):
+        stepsSinceLastTrain = 0
+        tholdRTTimes += 1
+        return True
+
+    stepsSinceLastTrain += 1
+
+    return numpy.sum(absoluteError) > 1000
+
+
 graphing = Graphing.AGraphHolder(seed, spTemp, spTarg, dlp)
 
-#graphing.TestRetrainLive(maxY, solvedSize, TargetDPI, iTime, color, EvalFunction, RetrainFunction, ThresholdFunction, 300, ["Temperature (C)", "Heater Power (kW)", "Water Level (L)", "Target Temperature (C)", "Cosine Sim.", "Error"])
-
+## Battery
+graphing.TestRetrainLive(maxY, solvedSize, TargetDPI, iTime, color, BaseEvalFunction, BaseRetrainFunction, ThresholdFunction, 300, ["Temperature (C)", "Heater Power (kW)", "Water Level (L)", "Target Temperature (C)", "Cosine Sim.", "Error"])
+graphing.TestRetrainLive(maxY, solvedSize, TargetDPI, iTime, color, EvalFunction, RetrainFunction, ThresholdFunction, 300, ["Temperature (C)", "Heater Power (kW)", "Water Level (L)", "Target Temperature (C)", "Cosine Sim.", "Error"])
 graphing.TestRetrainLive(maxY, solvedSize, TargetDPI, iTime, color, ML_EvalFunction, ML_RetrainFunction, ThresholdFunction, 300, ["Temperature (C)", "Heater Power (kW)", "Water Level (L)", "Target Temperature (C)", "Cosine Sim.", "Error"])
 
 

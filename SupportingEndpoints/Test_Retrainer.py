@@ -1,10 +1,16 @@
 #!/usr/bin/env python3
 
 import pickle
+
 import control
 import modred
+import pysindy
+import pydmd
+
 #import slycot
-from scipy import signal
+import scipy
+from scipy import signal, fftpack
+from scipy.fftpack import fftshift
 import tensorflow as tf
 from tensorflow import keras
 from tensorflow.keras import layers
@@ -13,13 +19,101 @@ from ProcessSimulation import AActor, ABoiler, ABoilerController
 import time
 import matplotlib
 import matplotlib.pyplot
-#matplotlib.interactive(True)
-#matplotlib.use("TkAgg") 
+matplotlib.interactive(True)
+matplotlib.use("TkAgg") 
 import numpy
 import math
 import sys
 import Utils
 import Graphing
+import czt
+from past.utils import old_div
+import inspect
+
+def FilterFrequenciesByPower(x, PowerCutoff=0.05, timeBase=0):
+    #for signalIter in range(x.shape[0]):
+    #freq, sig_f = czt.time2freq(numpy.arange(timeBase, timeBase + x.shape[0]) * Utils.step, x)
+    #working = x.transpose()[signalIter].transpose()
+
+    # print(x.shape)
+
+    # curframe = inspect.currentframe()
+    # calframe = inspect.getouterframes(curframe, 4)
+    # print("Callstack")
+    # for i, frame in enumerate(reversed(calframe)):
+    #     tabby = "\t" + "  " * i
+    #     print(tabby + str(frame[2]) + ":" + str(frame[3]))
+
+    impack = fftpack.rfft(fftpack.rfft(x, axis=0), axis=1)
+    unpack = fftpack.irfft(fftpack.irfft(impack, axis=1), axis=0)
+    # print(unpack[0], x[0])
+
+    #impack = fftpack.rfft(working, axis=0)
+    #unpack = fftpack.irfft(impack, axis=0)
+
+    #assert(numpy.allclose(x, unpack))
+
+    # matplotlib.pyplot.figure(1)
+    # #matplotlib.pyplot.plot(f_fft / 1e3, np.angle(sig_fft), 'k',    label='FFT')
+    # matplotlib.pyplot.plot(numpy.arange(0, impack.shape[0]),  numpy.angle(impack),   'ro--', label='CZT')
+    # matplotlib.pyplot.xlabel("Frequency (kHz)")
+    # matplotlib.pyplot.ylabel("Signal phase")
+    # ##matplotlib.pyplot.xlim([f_fft.min()/1e3, f_fft.max()/1e3])
+    # matplotlib.pyplot.legend()
+    # matplotlib.pyplot.title("Frequency-domain")
+
+    # matplotlib.pyplot.figure(2)
+    # #matplotlib.pyplot.plot(f_fft / 1e3, np.angle(sig_fft), 'k',    label='FFT')
+    # matplotlib.pyplot.plot(numpy.arange(0, impack.shape[0]) / 1e3,  numpy.abs(impack),   'ro--', label='CZT')
+    # matplotlib.pyplot.xlabel("Frequency (kHz)")
+    # matplotlib.pyplot.ylabel("Signal mag")
+    # ##matplotlib.pyplot.xlim([f_fft.min()/1e3, f_fft.max()/1e3])
+    # matplotlib.pyplot.legend()
+    # matplotlib.pyplot.title("Frequency-domain")
+
+
+    powers = impack * numpy.conj(impack) / numpy.product(x.shape)
+
+    autoCutoff = numpy.max(powers) * PowerCutoff
+
+    indices = powers > autoCutoff
+    impack = indices * impack
+
+    # matplotlib.pyplot.figure(1)
+    # #matplotlib.pyplot.plot(f_fft / 1e3, np.angle(sig_fft), 'k',    label='FFT')
+    # matplotlib.pyplot.plot(numpy.arange(0, impack.shape[0]),  powers,   'ro--', label='CZT')
+    # matplotlib.pyplot.xlabel("Frequency (kHz)")
+    # matplotlib.pyplot.ylabel("Signal phase")
+    # ##matplotlib.pyplot.xlim([f_fft.min()/1e3, f_fft.max()/1e3])
+    # matplotlib.pyplot.legend()
+    # matplotlib.pyplot.title("Frequency-domain")
+
+    # matplotlib.pyplot.figure(2)
+    # #matplotlib.pyplot.plot(f_fft / 1e3, np.angle(sig_fft), 'k',    label='FFT')
+    # matplotlib.pyplot.plot(numpy.arange(0, impack.shape[0]) / 1e3,  numpy.abs(impack),   'ro--', label='CZT')
+    # matplotlib.pyplot.xlabel("Frequency (kHz)")
+    # matplotlib.pyplot.ylabel("Signal mag")
+    # ##matplotlib.pyplot.xlim([f_fft.min()/1e3, f_fft.max()/1e3])
+    # matplotlib.pyplot.legend()
+    # matplotlib.pyplot.title("Frequency-domain")
+
+    #input()
+
+    #out = fftpack.irfft(impack, axis=0)
+    out = fftpack.irfft(fftpack.irfft(impack, axis=1), axis=0)
+
+    return out
+
+
+maxY = 105
+maxTDPI = 120
+resolution = numpy.array((1920, 1080))
+TargetDPI = maxTDPI
+
+solvedSize = resolution / TargetDPI
+
+iTime = 60
+color = (0.05,0.05,0.05)
 
 
 
@@ -71,10 +165,31 @@ stepsSinceLastTrain = 0
 rtTimes = 0
 tholdRTTimes = 0
 
-def EvalFunction(history, feedback):
+##### ##### ########## ##### #####
+## BASE
+##
+
+def BaseEvalFunction(history, feedback, i):
+    return history[-1][4:], []
+
+def BaseRetrainFunction(history):
+    global rtTimes
+
+    rtTimes += 1
+
+def BaseDetectorFunction(history, feedback, timeBase):
+    return False
+
+##### ##### ########## ##### #####
+## Control Base
+##
+
+def EvalFunction(history, feedback, time):
+    global model
+
     _, yo, xo = control.forced_response(
         model,
-        numpy.arange(0, history.shape[0]) * step,
+        #(numpy.arange(time, time + history.shape[0])) * step,
         U=history.transpose()[:4],
         X0=feedback
     )
@@ -87,33 +202,6 @@ def EvalFunction(history, feedback):
 
     # return output, xo.transpose()[0]
     return yo.transpose()[-1], xo.transpose()[1]
-
-def ML_EvalFunction(history, feedback):
-    ytest = numpy.expand_dims(history[:Utils.seqLength], 0)
-    forecast = predmodel.predict(ytest)
-    forebar = tf.squeeze(forecast, 0).numpy()
-
-    return forebar, []
-
-def ThresholdFunction(signedError, absoluteError):
-    global stepsSinceLastTrain
-    global tholdRTTimes
-
-    shouldRetrainOnFixed = stepsSinceLastTrain * Utils.dilation > 100 
-    shouldRetrainOnError = numpy.sum(absoluteError) > 1000
-
-    stepsSinceLastTrain += 1
-
-    # Fixed step. Can be rolled into the return bool
-    # But it's here to be readable
-    if (shouldRetrainOnFixed):
-        tholdRTTimes += 1
-
-    if (shouldRetrainOnError or shouldRetrainOnFixed):
-        stepsSinceLastTrain = 0
-        return True
-
-    return False
 
 def RetrainFunction(history):
     global cost
@@ -140,6 +228,119 @@ def RetrainFunction(history):
 
     timePassed = time.perf_counter() - beginPerfTime
     cost += timePassed
+
+def DetectorFunction(history, feedback, timeBase):
+    global model
+    # yShift = fftshift(history[-1]) # shift of the step function
+    # Fourier = scipy.fft(yShift) # Fourier transform of y implementing the FFT
+    # Fourier = fftshift(Fourier) # inverse shift of the Fourier Transform
+    # print(Fourier)
+    # matplotlib.pyplot.plot(Fourier) # plot of the Fourier transform
+
+    # input()
+    # exit()
+
+    # ### Laplace Transform
+    # lU = numpy.random.laplace()
+
+    # ### Do the maths!
+    # uVector = history[-1]
+    # uVt = timeBase + history.shape[0]
+
+    return False
+
+    # Transform the history U-vector
+    PreU = history.transpose()[:4].transpose()
+    # Transform with B
+    A,B,C,D = control.ssdata(model)
+
+    ModifiedOutput = numpy.zeros((PreU.shape[0], 3))
+
+    for signalIter in range(PreU.shape[0]):
+        workingData = PreU[signalIter]
+        ModU = B.dot(workingData)
+        ModifiedOutput[signalIter] = ModU[0]
+
+    for signalIter in range(3):
+
+        print("Stepping ", signalIter)
+        print(ModifiedOutput.shape)
+        workingData = ModifiedOutput.transpose()[signalIter]#[signalIter]
+        print(workingData.shape)
+        input()
+
+
+
+        freq, sig_f = czt.time2freq(numpy.arange(timeBase, timeBase + workingData.shape[0]) * Utils.step, workingData)
+
+        # matplotlib.pyplot.figure(1)
+        # #matplotlib.pyplot.plot(f_fft / 1e3, np.angle(sig_fft), 'k',    label='FFT')
+        # matplotlib.pyplot.plot(freq / 1e3,  numpy.angle(sig_f),   'ro--', label='CZT')
+        # matplotlib.pyplot.xlabel("Frequency (kHz)")
+        # matplotlib.pyplot.ylabel("Signal phase")
+        # ##matplotlib.pyplot.xlim([f_fft.min()/1e3, f_fft.max()/1e3])
+        # #matplotlib.pyplot.legend()
+        # matplotlib.pyplot.title("Frequency-domain")
+
+        # matplotlib.pyplot.figure(2)
+        # #matplotlib.pyplot.plot(f_fft / 1e3, np.angle(sig_fft), 'k',    label='FFT')
+        # matplotlib.pyplot.plot(freq / 1e3,  numpy.abs(sig_f),   'ro--', label='CZT')
+        # matplotlib.pyplot.xlabel("Frequency (kHz)")
+        # matplotlib.pyplot.ylabel("Signal mag")
+        # ##matplotlib.pyplot.xlim([f_fft.min()/1e3, f_fft.max()/1e3])
+        # #matplotlib.pyplot.legend()
+        # matplotlib.pyplot.title("Frequency-domain")
+
+        # Decompile to real and imag compo
+        # zU = e^(z * dt)
+        # ln(zU) = z * dt
+        # z = ln(zU) / dt
+        
+        poles = 0
+
+        for cmptePle in zip(freq, sig_f):
+            # So
+            # We would like to compute the real and imaginary components of the number
+            # sig_F
+            #tScore = Utils.GetFitness(cmptePle[1])
+
+            rScale = cmptePle[1].real
+            iScale = cmptePle[1].imag
+
+            print(rScale, iScale)
+
+            input()
+
+            matplotlib.pyplot.figure(signalIter)
+            #matplotlib.pyplot.plot(f_fft / 1e3, np.angle(sig_fft), 'k',    label='FFT')
+            matplotlib.pyplot.plot([rScale],  [iScale],   'ro--', label='CZT')
+            ##matplotlib.pyplot.xlim([f_fft.min()/1e3, f_fft.max()/1e3])
+            matplotlib.pyplot.xlabel("Real")
+            matplotlib.pyplot.ylabel("Imaginary")
+            #matplotlib.pyplot.legend()
+            matplotlib.pyplot.title("Frequency-domain")
+
+        
+        input()    
+
+
+    exit()
+
+
+
+
+    return False
+
+##### ##### ########## ##### #####
+## Machine Learning
+##
+
+def ML_EvalFunction(history, feedback, time):
+    ytest = numpy.expand_dims(history[:Utils.seqLength], 0)
+    forecast = predmodel.predict(ytest)
+    forebar = tf.squeeze(forecast, 0).numpy()
+
+    return forebar, []
 
 def ML_RetrainFunction(history):
     global cost
@@ -176,29 +377,358 @@ def ML_RetrainFunction(history):
     timePassed = time.perf_counter() - beginPerfTime
     cost += timePassed
 
-graphing = Graphing.AGraphHolder(seed, spTemp, spTarg, dlp)
+def ML_DetectorFunction(history, feedback, timeBase):
+    return False
 
-_, results = graphing.TestRetraining(EvalFunction, RetrainFunction, ThresholdFunction, 300)
 
-with open("backtrackRetrain.dat", "wb+") as f:
-    pickle.dump(results, f)
+##### ##### ########## ##### #####
+## DMDc
+##
 
-print("Cost {} ({}s)".format(cost, cost/rtTimes))
-print("Retrains {}. (Fixed RTs {})".format(rtTimes, tholdRTTimes))
+dmdModel = None
 
-cost = 0
-costml = 0
-stepsSinceLastTrain = 0
-rtTimes = 0
-tholdRTTimes = 0
+with open("Pickle.dmd", "rb+") as f:
+    dmdModel = pickle.load(f)
 
-del results
+def DMDc_EvalFunction(history, feedback, i):
+    global dmdModel
 
-graphing = Graphing.AGraphHolder(seed, spTemp, spTarg, dlp)
-_, mlresults = graphing.TestRetraining(ML_EvalFunction, ML_RetrainFunction, ThresholdFunction, 300)
+    ht = history.transpose()
+    l1 = ht[:4]#.transpose()
+    l2 = ht[4:]#.transpose()
 
-with open("backtrackRetrainWithML.dat", "wb+") as f:
-    pickle.dump(mlresults, f)
+    nl1 = l1.transpose()[:dmdModel.dynamics.shape[1] - 1].transpose()
 
-print("Cost {} ({}s)".format(cost, cost/rtTimes))
-print("Retrains {}. (Fixed RTs {})".format(rtTimes, tholdRTTimes))
+    eigs = numpy.power(dmdModel.eigs, old_div(dmdModel.dmd_time['dt'], dmdModel.original_time['dt']))
+    A = dmdModel.modes.dot(numpy.diag(eigs)).dot(numpy.linalg.pinv(dmdModel.modes))
+    B = dmdModel.B
+    U = l1.transpose()[-1]
+    X = l2.transpose()[-1]
+
+    out = A.dot(X) + B.dot(U)
+
+    #out = dmdModel.reconstructed_data(nl1).transpose()[-1]
+
+    return out, []
+
+def DMDc_RetrainFunction(history):
+    global dmdModel
+    global rtTimes
+    global cost
+
+    rtTimes += 1
+    beginPerfTime = time.perf_counter()
+
+    print("Retraining")
+    ht = history.transpose()
+    l1 = ht[:4]#.transpose()
+    l2 = ht[4:]#.transpose()
+
+    #nl1 = l1.transpose()[:dmdModel.dynamics.shape[1] - 1].transpose()
+    #nl2 = l2.transpose()[:dmdModel.dynamics.shape[1] - 1].transpose()
+
+    dmdModel, score = Utils.GetBestDMD(l1, l2)
+
+    timePassed = time.perf_counter() - beginPerfTime
+    cost += timePassed
+
+def DMDc_DetectorFunction(history, feedback, timeBase):
+    global dmdModel
+
+
+    return False
+    # yShift = fftshift(history[-1]) # shift of the step function
+    # Fourier = scipy.fft(yShift) # Fourier transform of y implementing the FFT
+    # Fourier = fftshift(Fourier) # inverse shift of the Fourier Transform
+    # print(Fourier)
+    # matplotlib.pyplot.plot(Fourier) # plot of the Fourier transform
+
+    # input()
+    # exit()
+
+    # ### Laplace Transform
+    # lU = numpy.random.laplace()
+
+    # ### Do the maths!
+    # uVector = history[-1]
+    # uVt = timeBase + history.shape[0]
+
+    # Transform the history U-vector
+    PreU = history.transpose()[:4].transpose()
+    # Transform with B
+    B = dmdModel.B
+
+    ModifiedOutput = numpy.zeros((PreU.shape[0], 3))
+
+    for signalIter in range(PreU.shape[0]):
+        workingData = PreU[signalIter]
+        ModU = B.dot(workingData)
+        ModifiedOutput[signalIter] = ModU[0]
+
+    for signalIter in range(3):
+
+        print("Stepping ", signalIter)
+        print(ModifiedOutput.shape)
+        workingData = ModifiedOutput.transpose()[signalIter]#[signalIter]
+        print(workingData.shape)
+        input()
+
+
+
+        freq, sig_f = czt.time2freq(numpy.arange(timeBase, timeBase + workingData.shape[0]) * Utils.step, workingData)
+
+        # matplotlib.pyplot.figure(1)
+        # #matplotlib.pyplot.plot(f_fft / 1e3, np.angle(sig_fft), 'k',    label='FFT')
+        # matplotlib.pyplot.plot(freq / 1e3,  numpy.angle(sig_f),   'ro--', label='CZT')
+        # matplotlib.pyplot.xlabel("Frequency (kHz)")
+        # matplotlib.pyplot.ylabel("Signal phase")
+        # ##matplotlib.pyplot.xlim([f_fft.min()/1e3, f_fft.max()/1e3])
+        # #matplotlib.pyplot.legend()
+        # matplotlib.pyplot.title("Frequency-domain")
+
+        # matplotlib.pyplot.figure(2)
+        # #matplotlib.pyplot.plot(f_fft / 1e3, np.angle(sig_fft), 'k',    label='FFT')
+        # matplotlib.pyplot.plot(freq / 1e3,  numpy.abs(sig_f),   'ro--', label='CZT')
+        # matplotlib.pyplot.xlabel("Frequency (kHz)")
+        # matplotlib.pyplot.ylabel("Signal mag")
+        # ##matplotlib.pyplot.xlim([f_fft.min()/1e3, f_fft.max()/1e3])
+        # #matplotlib.pyplot.legend()
+        # matplotlib.pyplot.title("Frequency-domain")
+
+        # Decompile to real and imag compo
+        # zU = e^(z * dt)
+        # ln(zU) = z * dt
+        # z = ln(zU) / dt
+        
+        poles = 0
+
+        for cmptePle in zip(freq, sig_f):
+            # So
+            # We would like to compute the real and imaginary components of the number
+            # sig_F
+            #tScore = Utils.GetFitness(cmptePle[1])
+
+            rScale = cmptePle[1].real
+            iScale = cmptePle[1].imag
+
+            print(rScale, iScale)
+
+            input()
+
+            matplotlib.pyplot.figure(signalIter)
+            #matplotlib.pyplot.plot(f_fft / 1e3, np.angle(sig_fft), 'k',    label='FFT')
+            matplotlib.pyplot.plot([rScale],  [iScale],   'ro--', label='CZT')
+            ##matplotlib.pyplot.xlim([f_fft.min()/1e3, f_fft.max()/1e3])
+            matplotlib.pyplot.xlabel("Real")
+            matplotlib.pyplot.ylabel("Imaginary")
+            #matplotlib.pyplot.legend()
+            matplotlib.pyplot.title("Frequency-domain")
+
+        
+        input()    
+
+
+    exit()
+
+
+
+
+##### ##### ########## ##### #####
+## MrDMD
+##
+
+mrdmdModel = None
+
+with open("Pickle.mrdmd", "rb+") as f:
+    mrdmdModel = pickle.load(f)
+
+def MrDMD_EvalFunction(history, feedback, i):
+    global mrdmdModel
+
+    ht = history.transpose()
+    l1 = ht[:4]#.transpose()
+    l2 = ht[4:]#.transpose()
+
+    #nl1 = l1.transpose()[:dmdModel.dynamics.shape[1] - 1].transpose()
+
+    eigs = numpy.power(mrdmdModel.eigs, old_div(mrdmdModel.dmd_time['dt'], mrdmdModel.original_time['dt']))
+    A = mrdmdModel.modes.dot(numpy.diag(eigs)).dot(numpy.linalg.pinv(mrdmdModel.modes))
+    X = l2.transpose()[-1]
+    out = A.dot(X)
+
+    # B = dmdModel.B
+    # U = l1.transpose()[-1]
+    
+
+    # out = A.dot(X) + B.dot(U)
+
+    #out = dmdModel.reconstructed_data(nl1).transpose()[-1]
+
+    return out, []
+
+def MrDMD_RetrainFunction(history):
+    global mrdmdModel
+    global rtTimes
+    global cost
+
+    rtTimes += 1
+    beginPerfTime = time.perf_counter()
+
+    print("Retraining")
+    ht = history.transpose()
+    l1 = ht[:4]#.transpose()
+    l2 = ht[4:]#.transpose()
+
+    #nl1 = l1.transpose()[:dmdModel.dynamics.shape[1] - 1].transpose()
+    #nl2 = l2.transpose()[:dmdModel.dynamics.shape[1] - 1].transpose()
+
+    mrdmdModel, score = Utils.GetBestMrDMD(l1, l2)
+
+    timePassed = time.perf_counter() - beginPerfTime
+    cost += timePassed
+
+def MrDMD_DetectorFunction(history, feedback, timeBase):
+    return False
+
+
+##### ##### ########## ##### #####
+## Sindy
+##
+
+sindyModel = None
+
+with open("Pickle.sindy", "rb+") as f:
+    sindyModel = pickle.load(f)
+
+def Sindy_EvalFunction(history, feedback, i):
+    global sindyModel
+
+    ht = history.transpose()
+    l1 = ht[:4].transpose()
+    l2 = ht[4:].transpose()
+
+    out = sindyModel.simulate(l2[-1], 1, u=l1[-1])
+
+    return out[0], []
+
+def Sindy_RetrainFunction(history):
+    global sindyModel
+    global rtTimes
+    global cost
+
+    rtTimes += 1
+    beginPerfTime = time.perf_counter()
+
+    print("Retraining")
+    ht = history.transpose()
+    l1 = ht[:4]#.transpose()
+    l2 = ht[4:]#.transpose()
+
+    #nl1 = l1.transpose()[:dmdModel.dynamics.shape[1] - 1].transpose()
+    #nl2 = l2.transpose()[:dmdModel.dynamics.shape[1] - 1].transpose()
+
+    try:
+        sindyModel, score = Utils.GetBestSindy(l1, l2)
+    except:
+        rtTimes -= 1
+        pass
+
+    timePassed = time.perf_counter() - beginPerfTime
+    cost += timePassed
+
+def Sindy_DetectorFunction(history, feedback, timeBase):
+    return False
+
+
+def ThresholdFunction(signedError, absoluteError):
+    global stepsSinceLastTrain
+    global tholdRTTimes
+
+    shouldRetrainOnFixed = stepsSinceLastTrain * Utils.dilation >= 500
+    shouldRetrainOnError = numpy.sum(absoluteError) > 1000
+
+    stepsSinceLastTrain += 1
+
+    # Fixed step. Can be rolled into the return bool
+    # But it's here to be readable
+    if (shouldRetrainOnFixed):
+        tholdRTTimes += 1
+
+    if (shouldRetrainOnError or shouldRetrainOnFixed):
+        stepsSinceLastTrain = 0
+        return True
+
+    return False
+
+
+def ZeroAllVars():
+    global cost
+    global costml
+    global stepsSinceLastTrain
+    global rtTimes
+    global tholdRTTimes
+
+    cost = 0
+    costml = 0
+    stepsSinceLastTrain = 0
+    rtTimes = 0
+    tholdRTTimes = 0
+
+comboBox = [
+    (Sindy_EvalFunction, Sindy_RetrainFunction, Sindy_DetectorFunction, None, None, "Sindy.dat"),
+    (DMDc_EvalFunction, DMDc_RetrainFunction, DMDc_DetectorFunction, None, None, "DMDc.dat"),
+    (EvalFunction, RetrainFunction, DetectorFunction, None, None, "OKIDERA.dat"),
+    #(MrDMD_EvalFunction, MrDMD_RetrainFunction, MrDMD_DetectorFunction, "MrDMD.dat"),
+    (BaseEvalFunction, BaseRetrainFunction, BaseDetectorFunction, None, None, "BaseCase.dat"),
+
+
+    (EvalFunction, RetrainFunction, DetectorFunction, FilterFrequenciesByPower, None, "OKIDERA_FilterData.dat"),
+    (Sindy_EvalFunction, Sindy_RetrainFunction, Sindy_DetectorFunction, FilterFrequenciesByPower, None, "Sindy_FilterData.dat"),
+    #(MrDMD_EvalFunction, MrDMD_RetrainFunction, MrDMD_DetectorFunction, "MrDMD.dat"),
+    (DMDc_EvalFunction, DMDc_RetrainFunction, DMDc_DetectorFunction, FilterFrequenciesByPower, None, "DMDc_FilterData.dat"),
+    (BaseEvalFunction, BaseRetrainFunction, BaseDetectorFunction, FilterFrequenciesByPower, None, "BaseCase_FilterData.dat"),
+    
+
+    #(EvalFunction, RetrainFunction, DetectorFunction, None, FilterFrequenciesByPower, "OKIDERA_FilterTrain.dat"),
+    (Sindy_EvalFunction, Sindy_RetrainFunction, Sindy_DetectorFunction, None, FilterFrequenciesByPower, "Sindy_FilterTrain.dat"),
+    #(MrDMD_EvalFunction, MrDMD_RetrainFunction, MrDMD_DetectorFunction, "MrDMD.dat"),
+    (DMDc_EvalFunction, DMDc_RetrainFunction, DMDc_DetectorFunction, None, FilterFrequenciesByPower, "DMDc_FilterTrain.dat"),
+    (BaseEvalFunction, BaseRetrainFunction, BaseDetectorFunction, None, FilterFrequenciesByPower, "BaseCase_FilterTrain.dat"),
+
+
+    (ML_EvalFunction, ML_RetrainFunction, ML_DetectorFunction, None, FilterFrequenciesByPower, "Recurrent_FilterTrain.dat"),
+    (ML_EvalFunction, ML_RetrainFunction, ML_DetectorFunction, FilterFrequenciesByPower, None, "Recurrent_FilterData.dat"),
+    (ML_EvalFunction, ML_RetrainFunction, ML_DetectorFunction, None, None, "Recurrent.dat")
+]
+
+for evf, rtf, dtf, flt, rtfflt, name in comboBox:
+    ZeroAllVars()
+
+    graphing = Graphing.AGraphHolder(seed, spTemp, spTarg, dlp)
+    _, results = graphing.TestRetraining(evf, rtf, ThresholdFunction, 4096, detectorFunction=dtf, filterFunction=flt, retrainFilter=rtfflt)
+    #graphing.TestRetrainLive(maxY, solvedSize, TargetDPI, iTime, color, evf, rtf, ThresholdFunction, 300, ["Temperature (C)", "Heater Power (kW)", "Water Level (L)", "Target Temperature (C)", "Cosine Sim.", "Error"], filterFunction=flt, retrainFilter=rtfflt)
+
+    with open(name, "wb+") as f:
+        pickle.dump(results, f)
+
+    print("{} -- Cost {} ({}s)".format(name, cost, cost/rtTimes))
+    print("{} -- Retrains {}. (Fixed RTs {})".format(name, rtTimes, tholdRTTimes))
+
+
+input()
+exit()
+
+# cost = 0
+# costml = 0
+# stepsSinceLastTrain = 0
+# rtTimes = 0
+# tholdRTTimes = 0
+
+# graphing = Graphing.AGraphHolder(seed, spTemp, spTarg, dlp)
+# _, mlresults = graphing.TestRetraining(ML_EvalFunction, ML_RetrainFunction, ThresholdFunction, 300)
+
+# with open("backtrackRetrainWithML.dat", "wb+") as f:
+#     pickle.dump(mlresults, f)
+
+# print("Cost {} ({}s)".format(cost, cost/rtTimes))
+# print("Retrains {}. (Fixed RTs {})".format(rtTimes, tholdRTTimes))

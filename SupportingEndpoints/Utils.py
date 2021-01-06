@@ -9,6 +9,8 @@ import re
 import modred
 import pickle
 import control
+import pysindy
+import pydmd
 import matplotlib
 import matplotlib.pyplot
 import pandas
@@ -502,8 +504,10 @@ def CreateOKIDERA(l1, l2, i, step, dilation):
     #l1 = numpy.flip(l1, 1) 
     #l2 = numpy.flip(l2, 1) 
     kalman = modred.OKID(l1, l2, i)
-    era = modred.ERA()
-    a,b,c = era.compute_model(kalman, 20000)
+    era = modred.ERA(verbosity=0)
+
+    mco = int(math.floor( (len(kalman) - 1) / 2))
+    a,b,c = era.compute_model(kalman, 3*4*3)#, mco, mco)
     #b *= 1/step
     #a,b,c = modred.era.compute_ERA_model(kalman, 1500)
 
@@ -528,7 +532,7 @@ def CreateOKIDERA(l1, l2, i, step, dilation):
     # assert(c.shape == (3,3))
 
     newScore = GetFitness(numpy.linalg.eigvals(a))
-    print(newScore)
+    #print(newScore)
 
     asb = control.ss(a,b,c, numpy.zeros((c.shape[0], b.shape[1])), step)
     poles = control.pole(asb)
@@ -536,7 +540,7 @@ def CreateOKIDERA(l1, l2, i, step, dilation):
 
     return asb, score
 
-def GetBestOKID(l1, l2, minmcs=0, markovs=20):
+def GetBestOKID(l1, l2, minmcs=1, markovs=20):
     bestIndex = 0
     #bestScore = 1 # Unstable above 1
     bestScore = 5# Allow at least 1 failed pole
@@ -563,3 +567,73 @@ def GetBestOKID(l1, l2, minmcs=0, markovs=20):
     #print("Using {} markovs".format(bestIndex))
 
     return CreateOKIDERA(l1, l2 ,bestIndex, step, dilation)
+
+def GetBestDMDnc(l1, l2):
+    model = pydmd.DMD(svd_rank=-1)
+
+    #print(l1.shape, l2.shape)
+
+    #Resize
+    nl1 = l1.transpose()[:-1].transpose()
+    #nl2 = l2.transpose()[:300].transpose()
+
+    model.fit(l2, nl1)
+
+    #model.plot_eigs(show_axes=True, show_unit_circle=True, figsize=(8, 8))
+
+    #input()
+
+    return model, 1
+
+def GetBestDMD(l1, l2):
+    model = pydmd.DMDc(svd_rank=-1)
+
+    #print(l1.shape, l2.shape)
+
+    #Resize
+    nl1 = l1.transpose()[:-1].transpose()
+    #nl2 = l2.transpose()[:300].transpose()
+
+    model.fit(l2, nl1)
+
+    #model.plot_eigs(show_axes=True, show_unit_circle=True, figsize=(8, 8))
+
+    #input()
+
+    return model, 1
+
+def GetBestMrDMD(l1, l2):
+    model = pydmd.MrDMD(svd_rank=-1, max_level=7)
+
+    #print(l1.shape, l2.shape)
+
+    #Resize
+    nl1 = l1.transpose()[:-1].transpose()
+    nl2 = l2.transpose().transpose()
+
+    model.fit(l2)#, nl1)
+
+    #model.plot_eigs(show_axes=True, show_unit_circle=True, figsize=(8, 8))
+
+    #input()
+
+    return model, 1
+
+def GetBestSindy(l1, l2):
+    features = pysindy.PolynomialLibrary(degree=5)
+    optimiser = pysindy.STLSQ(threshold=0.0025, max_iter=2000000)
+    differential = pysindy.FiniteDifference(order=2)
+
+    #print(l2.shape)
+
+    model = pysindy.SINDy(
+        optimiser,
+        features, 
+        differential,
+        feature_names=["x","y"],
+        discrete_time=True
+        )
+
+    model.fit(l2.transpose(), u=l1.transpose(), quiet=False)
+
+    return model, 1
