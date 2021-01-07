@@ -8,8 +8,8 @@ from ProcessSimulation import AActor, ABoiler, ABoilerController
 import time
 import matplotlib
 import matplotlib.pyplot
-matplotlib.interactive(True)
-matplotlib.use("TkAgg") 
+# matplotlib.interactive(True)
+# matplotlib.use("TkAgg") 
 import numpy
 import cmath
 import math

@@ -7,6 +7,7 @@ import modred
 import pysindy
 import pydmd
 
+import os
 #import slycot
 import scipy
 from scipy import signal, fftpack
@@ -19,8 +20,8 @@ from ProcessSimulation import AActor, ABoiler, ABoilerController
 import time
 import matplotlib
 import matplotlib.pyplot
-matplotlib.interactive(True)
-matplotlib.use("TkAgg") 
+# matplotlib.interactive(True)
+# matplotlib.use("TkAgg") 
 import numpy
 import math
 import sys
@@ -30,7 +31,7 @@ import czt
 from past.utils import old_div
 import inspect
 
-def FilterFrequenciesByPower(x, PowerCutoff=0.05, timeBase=0):
+def FilterFrequenciesByPower(x, PowerCutoff=0.005, timeBase=0):
     #for signalIter in range(x.shape[0]):
     #freq, sig_f = czt.time2freq(numpy.arange(timeBase, timeBase + x.shape[0]) * Utils.step, x)
     #working = x.transpose()[signalIter].transpose()
@@ -51,7 +52,7 @@ def FilterFrequenciesByPower(x, PowerCutoff=0.05, timeBase=0):
     #impack = fftpack.rfft(working, axis=0)
     #unpack = fftpack.irfft(impack, axis=0)
 
-    #assert(numpy.allclose(x, unpack))
+    assert(numpy.allclose(x, unpack))
 
     # matplotlib.pyplot.figure(1)
     # #matplotlib.pyplot.plot(f_fft / 1e3, np.angle(sig_fft), 'k',    label='FFT')
@@ -159,11 +160,15 @@ with open("Pickle.era", "rb+") as f:
 
 predmodel = keras.models.load_model("model.tensorflow")
 
-cost = 0
-costml = 0
+cost = []
+costToRT = []
 stepsSinceLastTrain = 0
 rtTimes = 0
 tholdRTTimes = 0
+
+# For DMD
+cacheA = None
+cacheB = None
 
 ##### ##### ########## ##### #####
 ## BASE
@@ -184,15 +189,23 @@ def BaseDetectorFunction(history, feedback, timeBase):
 ## Control Base
 ##
 
-def EvalFunction(history, feedback, time):
+def EvalFunction(history, feedback, timeBase):
     global model
+    global cost
+
+    asU = history.transpose()[:4]
+
+    evalBeginTime = time.perf_counter()
 
     _, yo, xo = control.forced_response(
         model,
         #(numpy.arange(time, time + history.shape[0])) * step,
-        U=history.transpose()[:4],
+        U=asU,
         X0=feedback
     )
+
+    evalEndTime = time.perf_counter()
+    cost.append(evalEndTime - evalBeginTime)
 
     # Set the input to the output bar temp
     # output = history[-1].copy()
@@ -204,13 +217,13 @@ def EvalFunction(history, feedback, time):
     return yo.transpose()[-1], xo.transpose()[1]
 
 def RetrainFunction(history):
-    global cost
+    global costToRT
     global rtTimes
     global model
 
     rtTimes += 1
     
-    beginPerfTime = time.perf_counter()
+    evalBeginTime = time.perf_counter()
 
     print("Retraining")
     ht = history.transpose()
@@ -226,8 +239,8 @@ def RetrainFunction(history):
     # #signal.TransferFunction
     # print(a)
 
-    timePassed = time.perf_counter() - beginPerfTime
-    cost += timePassed
+    timePassed = time.perf_counter() - evalBeginTime
+    costToRT.append(timePassed)
 
 def DetectorFunction(history, feedback, timeBase):
     global model
@@ -335,21 +348,29 @@ def DetectorFunction(history, feedback, timeBase):
 ## Machine Learning
 ##
 
-def ML_EvalFunction(history, feedback, time):
+def ML_EvalFunction(history, feedback, timeBase):
+    global cost
+
+    # Timing Harness
+    evalBeginTime = time.perf_counter()
+    
     ytest = numpy.expand_dims(history[:Utils.seqLength], 0)
     forecast = predmodel.predict(ytest)
     forebar = tf.squeeze(forecast, 0).numpy()
 
+    evalEndTime = time.perf_counter()
+    cost.append(evalEndTime - evalBeginTime)
+
     return forebar, []
 
 def ML_RetrainFunction(history):
-    global cost
+    global costToRT
     global rtTimes
     global predmodel
 
     rtTimes += 1
     
-    beginPerfTime = time.perf_counter()
+    evalBeginTime = time.perf_counter()
 
     print("Retraining ML")
     splitPerc = history.shape[0] // 100
@@ -371,11 +392,12 @@ def ML_RetrainFunction(history):
     inVal = numpy.concatenate((valDisturbs, valStates), axis=2)
     inValStates = targetValStates
 
+    predmodel = Utils.GenerateModel(disturbs, states)
     predmodel.fit(inFeed, inFeedStates, validation_data=(inVal, inValStates), batch_size=8, epochs=3)
     #predmodel.save("model.tensorflow")
 
-    timePassed = time.perf_counter() - beginPerfTime
-    cost += timePassed
+    timePassed = time.perf_counter() - evalBeginTime
+    costToRT.append(timePassed)
 
 def ML_DetectorFunction(history, feedback, timeBase):
     return False
@@ -391,7 +413,16 @@ with open("Pickle.dmd", "rb+") as f:
     dmdModel = pickle.load(f)
 
 def DMDc_EvalFunction(history, feedback, i):
+    global cost
     global dmdModel
+    global cacheA
+    global cacheB
+
+    # Check the caches are intact
+    if cacheA is None or cacheB is None:
+        eigs = numpy.power(dmdModel.eigs, old_div(dmdModel.dmd_time['dt'], dmdModel.original_time['dt']))
+        cacheA = dmdModel.modes.dot(numpy.diag(eigs)).dot(numpy.linalg.pinv(dmdModel.modes))
+        cacheB = dmdModel.B
 
     ht = history.transpose()
     l1 = ht[:4]#.transpose()
@@ -399,13 +430,15 @@ def DMDc_EvalFunction(history, feedback, i):
 
     nl1 = l1.transpose()[:dmdModel.dynamics.shape[1] - 1].transpose()
 
-    eigs = numpy.power(dmdModel.eigs, old_div(dmdModel.dmd_time['dt'], dmdModel.original_time['dt']))
-    A = dmdModel.modes.dot(numpy.diag(eigs)).dot(numpy.linalg.pinv(dmdModel.modes))
-    B = dmdModel.B
     U = l1.transpose()[-1]
     X = l2.transpose()[-1]
 
-    out = A.dot(X) + B.dot(U)
+    evalBeginTime = time.perf_counter()
+
+    out = cacheA.dot(X) + cacheB.dot(U)
+
+    evalEndTime = time.perf_counter()
+    cost.append(evalEndTime - evalBeginTime)
 
     #out = dmdModel.reconstructed_data(nl1).transpose()[-1]
 
@@ -414,10 +447,12 @@ def DMDc_EvalFunction(history, feedback, i):
 def DMDc_RetrainFunction(history):
     global dmdModel
     global rtTimes
-    global cost
+    global costToRT
+    global cacheA
+    global cacheB
 
     rtTimes += 1
-    beginPerfTime = time.perf_counter()
+    evalBeginTime = time.perf_counter()
 
     print("Retraining")
     ht = history.transpose()
@@ -429,8 +464,12 @@ def DMDc_RetrainFunction(history):
 
     dmdModel, score = Utils.GetBestDMD(l1, l2)
 
-    timePassed = time.perf_counter() - beginPerfTime
-    cost += timePassed
+    eigs = numpy.power(dmdModel.eigs, old_div(dmdModel.dmd_time['dt'], dmdModel.original_time['dt']))
+    cacheA = dmdModel.modes.dot(numpy.diag(eigs)).dot(numpy.linalg.pinv(dmdModel.modes))
+    cacheB = dmdModel.B
+
+    timePassed = time.perf_counter() - evalBeginTime
+    costToRT.append(timePassed)
 
 def DMDc_DetectorFunction(history, feedback, timeBase):
     global dmdModel
@@ -569,10 +608,10 @@ def MrDMD_EvalFunction(history, feedback, i):
 def MrDMD_RetrainFunction(history):
     global mrdmdModel
     global rtTimes
-    global cost
+    global costToRT
 
     rtTimes += 1
-    beginPerfTime = time.perf_counter()
+    evalBeginTime = time.perf_counter()
 
     print("Retraining")
     ht = history.transpose()
@@ -584,8 +623,8 @@ def MrDMD_RetrainFunction(history):
 
     mrdmdModel, score = Utils.GetBestMrDMD(l1, l2)
 
-    timePassed = time.perf_counter() - beginPerfTime
-    cost += timePassed
+    timePassed = time.perf_counter() - evalBeginTime
+    costToRT.append(timePassed)
 
 def MrDMD_DetectorFunction(history, feedback, timeBase):
     return False
@@ -602,22 +641,28 @@ with open("Pickle.sindy", "rb+") as f:
 
 def Sindy_EvalFunction(history, feedback, i):
     global sindyModel
+    global cost
 
     ht = history.transpose()
-    l1 = ht[:4].transpose()
-    l2 = ht[4:].transpose()
+    l1 = ht[:4].transpose()[-1]
+    l2 = ht[4:].transpose()[-1]
 
-    out = sindyModel.simulate(l2[-1], 1, u=l1[-1])
+    evalBeginTime = time.perf_counter()
+
+    out = sindyModel.simulate(l2, 1, u=l1)
+
+    evalEndTime = time.perf_counter()
+    cost.append(evalEndTime - evalBeginTime)
 
     return out[0], []
 
 def Sindy_RetrainFunction(history):
     global sindyModel
     global rtTimes
-    global cost
+    global costToRT
 
     rtTimes += 1
-    beginPerfTime = time.perf_counter()
+    evalBeginTime = time.perf_counter()
 
     print("Retraining")
     ht = history.transpose()
@@ -633,8 +678,8 @@ def Sindy_RetrainFunction(history):
         rtTimes -= 1
         pass
 
-    timePassed = time.perf_counter() - beginPerfTime
-    cost += timePassed
+    timePassed = time.perf_counter() - evalBeginTime
+    costToRT.append(timePassed)
 
 def Sindy_DetectorFunction(history, feedback, timeBase):
     return False
@@ -663,13 +708,13 @@ def ThresholdFunction(signedError, absoluteError):
 
 def ZeroAllVars():
     global cost
-    global costml
+    global costToRT
     global stepsSinceLastTrain
     global rtTimes
     global tholdRTTimes
 
-    cost = 0
-    costml = 0
+    cost = []
+    costToRT = []
     stepsSinceLastTrain = 0
     rtTimes = 0
     tholdRTTimes = 0
@@ -689,7 +734,7 @@ comboBox = [
     (BaseEvalFunction, BaseRetrainFunction, BaseDetectorFunction, FilterFrequenciesByPower, None, "BaseCase_FilterData.dat"),
     
 
-    #(EvalFunction, RetrainFunction, DetectorFunction, None, FilterFrequenciesByPower, "OKIDERA_FilterTrain.dat"),
+    #(EvalFunction, RetrainFunction, DetectorFunction, None, FilterFrequenciesByPower, "OKIDERA_FilterTrain.dat"), ## EXCLUDED DUE TO CRASH
     (Sindy_EvalFunction, Sindy_RetrainFunction, Sindy_DetectorFunction, None, FilterFrequenciesByPower, "Sindy_FilterTrain.dat"),
     #(MrDMD_EvalFunction, MrDMD_RetrainFunction, MrDMD_DetectorFunction, "MrDMD.dat"),
     (DMDc_EvalFunction, DMDc_RetrainFunction, DMDc_DetectorFunction, None, FilterFrequenciesByPower, "DMDc_FilterTrain.dat"),
@@ -704,14 +749,28 @@ comboBox = [
 for evf, rtf, dtf, flt, rtfflt, name in comboBox:
     ZeroAllVars()
 
+    if os.path.exists("Error_" + name):
+        print("Skipping {}".format(name))
+        continue
+
     graphing = Graphing.AGraphHolder(seed, spTemp, spTarg, dlp)
-    _, results = graphing.TestRetraining(evf, rtf, ThresholdFunction, 4096, detectorFunction=dtf, filterFunction=flt, retrainFilter=rtfflt)
+    _, results, timeResults = graphing.TestRetraining(evf, rtf, ThresholdFunction, 4096, detectorFunction=dtf, filterFunction=flt, retrainFilter=rtfflt)
     #graphing.TestRetrainLive(maxY, solvedSize, TargetDPI, iTime, color, evf, rtf, ThresholdFunction, 300, ["Temperature (C)", "Heater Power (kW)", "Water Level (L)", "Target Temperature (C)", "Cosine Sim.", "Error"], filterFunction=flt, retrainFilter=rtfflt)
 
-    with open(name, "wb+") as f:
+    with open("Error_" + name, "wb+") as f:
         pickle.dump(results, f)
 
-    print("{} -- Cost {} ({}s)".format(name, cost, cost/rtTimes))
+    with open("IncTime_" + name, "wb+") as f:
+        pickle.dump(timeResults, f)
+
+    with open("EvalTime_" + name, "wb+") as f:
+        pickle.dump(cost, f)
+
+    with open("RetrainTime_" + name, "wb+") as f:
+        pickle.dump(costToRT, f)
+
+
+    print("{} -- Infer Cost: {}. RT Cost {} ({}s)".format(name, numpy.sum(cost), numpy.sum(costToRT), numpy.mean(costToRT)))
     print("{} -- Retrains {}. (Fixed RTs {})".format(name, rtTimes, tholdRTTimes))
 
 

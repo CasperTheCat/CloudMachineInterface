@@ -38,7 +38,7 @@ import math
 dilation = Utils.dilation
 seqLength = Utils.seqLength
 step = Utils.step
-allShape = 3500
+allShape = 35000
 #seqLength = 60 * 24
 
 disabledisturb = False
