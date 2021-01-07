@@ -754,7 +754,7 @@ for evf, rtf, dtf, flt, rtfflt, name in comboBox:
         continue
 
     graphing = Graphing.AGraphHolder(seed, spTemp, spTarg, dlp)
-    _, results, timeResults = graphing.TestRetraining(evf, rtf, ThresholdFunction, 4096, detectorFunction=dtf, filterFunction=flt, retrainFilter=rtfflt)
+    _, results, timeResults = graphing.TestRetraining(evf, rtf, ThresholdFunction, 16384, detectorFunction=dtf, filterFunction=flt, retrainFilter=rtfflt)
     #graphing.TestRetrainLive(maxY, solvedSize, TargetDPI, iTime, color, evf, rtf, ThresholdFunction, 300, ["Temperature (C)", "Heater Power (kW)", "Water Level (L)", "Target Temperature (C)", "Cosine Sim.", "Error"], filterFunction=flt, retrainFilter=rtfflt)
 
     with open("Error_" + name, "wb+") as f:
