@@ -46,6 +46,8 @@ class AGraphHolder():
 
         self.perfWindow = 30
 
+        self.totalRuntime = 0
+
     def ProcessAvgFramerate(self):
         realWindow = min(30, len(self.lastUpdateTimes))
 
@@ -397,6 +399,7 @@ class AGraphHolder():
         retrainError={}
         errorTracking = 0.0
         absErrorTracking = 0.0
+        timeCost = {}
 
         for i in range(backOffset):
             offsetResults[i] = []
@@ -523,8 +526,10 @@ class AGraphHolder():
             # Perf Timers
             endPerfTime = time.perf_counter()
             self.lastFrameTime = endPerfTime - beginPerfTime
+            self.totalRuntime += self.lastFrameTime
+            timeCost[i] = self.lastFrameTime / backOffset
     
-        return offsetResults, retrainError
+        return offsetResults, retrainError, timeCost
 
     def TestOffsetWidth(self, predictionFunction, loopLimit, backOffset = 150, futureOffset = 0, historyLength = 450 + Utils.seqLength):
         offsetResults = {}

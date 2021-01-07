@@ -6,32 +6,20 @@ import numpy
 import math
 import unicodedata
 import re
-import modred
 import pickle
-import control
-import pysindy
-import pydmd
 import matplotlib
 import matplotlib.pyplot
 import pandas
 import os
-import tensorflow as tf
-from tensorflow import keras
-from tensorflow.keras import layers
 
-dilation = 1#(1/4) * (1/5)
+dilation = 1
 seqLength = 300#5 * 12
 step = 5
-offset = 230
+offset = 60
 Weights = [1, 1, 1, 1, 1, 1, 0.01, 0.100]
-ErrorWeights = [0, 0, 0, 0, 1.1, 1, 0.01]#, 0.01]
 StateOnlyWeight = [0, 0, 0, 0, 1, 1, 0.001, 0.1]
 bFlip = False
 
-
-def ShuffleTogether(a ,b):
-    p = numpy.random.permutation(len(a))
-    return a[p], b[p]
 
 def TailState(x, minTail =100):
     nFeatures = x.shape[0]
@@ -42,7 +30,7 @@ def TailState(x, minTail =100):
     
 
     for i in range(nTailLength):
-        xt[i] = xt[i] * math.exp(-i / (nTailLength / 4) )
+        xt[i] = xt[i] * 0#math.exp(-i / (nTailLength / 4) )
 
     for i in range(nTailLength):
         #print(xt[-nTailLength + i], math.exp(-i / (nTailLength / 4) ) )
@@ -113,7 +101,7 @@ def window_stack(a, stepsize=1, width=3, nummax=None):
 
 
 def MakeCacheName(x,y, td, width, modRange, disable, boilerPower=10000, tankageLimits=(5,75,80), initWaterTemp=30, initCapacity=35, step=1, stack=True, seed=0):
-    p1 = "{}_{}_{}_{}".format(x,y,td, modRange)
+    p1 = "{}_{}_{}".format(x,y,td)
     p2 = "T" if disable else "F"
     p3 = "{}_{}.{}.{}_{}_{}".format(boilerPower, tankageLimits[0], tankageLimits[1], tankageLimits[2], initWaterTemp, initCapacity)
     p4 = "S{}_RNG{}".format(step,seed)
@@ -170,17 +158,15 @@ def MakeData(x,y, td, width, modRange, disable, boilerPower=10000, tankageLimits
 
     if(disable):
         boilerController.SetDisableDisturbance()
-    else:
-        boilerController.SetEnableDisturbance()
 
     measurements = x // step
     #ins = [[],[],[],[],[],[]]
 
     # In Temperature, Inflow Rate, Outflow Rate
-    user_disturbances = [[] ,[], [], []] 
+    user_disturbances = [[] ,[], [], [], []] 
 
     # Water Level, Boiler Setpoint PID, Water Temperature + disturbances
-    stateInformation = [[],[],[]]
+    stateInformation = [[],[]]
 
     # Nothing here!
     outputs = []
@@ -197,7 +183,7 @@ def MakeData(x,y, td, width, modRange, disable, boilerPower=10000, tankageLimits
         simulator.SimulateNTicks(step * 100, 1/100)
 
         if(not disable):
-            mod = math.sin(i * 0.05) * modRange #** 640 * 30
+            mod = math.sin(i * 0.005) * modRange #** 640 * 30
             boilerController.SetTarget(spTemp - math.floor(mod))
 
 
@@ -213,18 +199,16 @@ def MakeData(x,y, td, width, modRange, disable, boilerPower=10000, tankageLimits
         # Out Flow Rate
         user_disturbances[3].append(boiler.waterOutRatePerSecond)
 
-
-
         # Out Flow Temperature
-        stateInformation[0].append(boiler.GetBoilerWaterTemp())
+        user_disturbances[4].append(boiler.GetBoilerWaterTemp())
+
+
 
         # State Volume
-        stateInformation[1].append(boiler.waterVolCurrent)
+        stateInformation[0].append(boiler.waterVolCurrent)
 
         # State Power
-        stateInformation[2].append(boiler.boilerPerformance * boiler.boilerPercent)
-
-        #user_disturbances[4].append(boilerController.PID.iVal)
+        stateInformation[1].append(boiler.boilerPerformance * boiler.boilerPercent)
         
         #stateInformation[2].append(boiler.boilerPercent * 100)
 
@@ -425,6 +409,24 @@ def MakeScreen(dataP, dataT, dataS, dataX, maxY=240, dataPLabel = "Simulated Tru
     three.set_xdata(numpy.arange(0, len(dataS)) * dilation)
     three.set_ydata(dataS)
     four.set_xdata(numpy.arange(0, len(dataX)) * dilation)
+    four.set_ydata(dataX)
+
+
+
+    # three.set_xdata(numpy.arange(0, len(dataP)) * simulator.timeDilation)
+    # three.set_ydata(dataS)
+    # four.set_xdata(numpy.arange(0, len(dataP)) * simulator.timeDilation)
+    # four.set_ydata(dataX)
+
+    ax.set_xlim(left=-5, right=len(dataP) * dilation +5)
+
+    return fig
+
+
+def MakeCSV(x, outpath):
+    hey = pandas.DataFrame(x)
+
+    hey.to_csv(outpath)(numpy.arange(0, len(dataX)) * dilation)
     four.set_ydata(dataX)
 
 
