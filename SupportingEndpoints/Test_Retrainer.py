@@ -30,6 +30,7 @@ import Graphing
 import czt
 from past.utils import old_div
 import inspect
+import gc
 
 def FilterFrequenciesByPower(x, PowerCutoff=0.005, timeBase=0):
     #for signalIter in range(x.shape[0]):
@@ -392,7 +393,11 @@ def ML_RetrainFunction(history):
     inVal = numpy.concatenate((valDisturbs, valStates), axis=2)
     inValStates = targetValStates
 
+    # Delete and force a GC
+    del predmodel
     predmodel = Utils.GenerateModel(disturbs, states)
+    gc.collect() 
+
     predmodel.fit(inFeed, inFeedStates, validation_data=(inVal, inValStates), batch_size=8, epochs=3)
     #predmodel.save("model.tensorflow")
 

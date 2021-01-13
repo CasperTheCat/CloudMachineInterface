@@ -65,10 +65,10 @@ disturbs3, states3, targetDisturbs3, targetStates3 = Utils.MakeData(allShape, 35
 disturbs4, states4, targetDisturbs4, targetStates4 = Utils.MakeData(allShape, 85, dilation, seqLength, 18, disabledisturb, step=step, stack=True, seed=8)
 disturbs5, states5, targetDisturbs5, targetStates5 = Utils.MakeData(allShape, 95, dilation, seqLength, 7, disabledisturb, step=step, stack=True, seed=11)
 
-disturbs = numpy.concatenate((disturbs, disturbs2, disturbs3, disturbs4, disturbs5))
-states = numpy.concatenate((states, states2, states3, states4, states5))
-targetDisturbs = numpy.concatenate((targetDisturbs, targetDisturbs2, targetDisturbs3, targetDisturbs4, targetDisturbs5))
-targetStates = numpy.concatenate((targetStates, targetStates2, targetStates3, targetStates4, targetStates5))
+# disturbs = numpy.concatenate((disturbs, disturbs2, disturbs3, disturbs4, disturbs5))
+# states = numpy.concatenate((states, states2, states3, states4, states5))
+# targetDisturbs = numpy.concatenate((targetDisturbs, targetDisturbs2, targetDisturbs3, targetDisturbs4, targetDisturbs5))
+# targetStates = numpy.concatenate((targetStates, targetStates2, targetStates3, targetStates4, targetStates5))
 
 val_disturbs, val_states, val_targetDisturbs, val_targetStates = Utils.MakeData(60000, 75, dilation, seqLength, 2, True, step=step)
 
@@ -83,7 +83,7 @@ forecastmodel = keras.Sequential(
         layers.Input(shape=(seqLength, disturbs.shape[2])),
         layers.LSTM(1024, return_sequences=True),
         layers.Dropout(0.2),
-        layers.LSTM(1024, return_sequences=True),
+        #layers.LSTM(1024, return_sequences=True),
         #layers.GRU(64, return_sequences=True),
         #layers.LSTM(128, return_sequences=True),
         layers.LSTM(1024, return_sequences=False),
@@ -143,7 +143,7 @@ forecastmodel.compile(
 predmodel.summary()
 forecastmodel.summary()
 
-epochlies = 3
+epochlies = 1
 
 #predmodel.fit(ins, outs, validation_data=(yins, youts), batch_size=16, epochs=epochlies)
 

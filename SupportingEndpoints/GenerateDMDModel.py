@@ -15,6 +15,8 @@ import numpy
 import cmath
 import math
 import Utils
+import scipy
+from past.utils import old_div
 
 dilation = Utils.dilation
 seqLength = Utils.seqLength
@@ -106,7 +108,35 @@ mrasb, score = Utils.GetBestMrDMD(l1, l2)
 with open("Pickle.mrdmd", "wb+") as f:
     pickle.dump(mrasb, f)
 
+
+## Now, let's just make a bode plot? (AKA does Scipy handle MIMO)
+
+eigs = numpy.power(asb.eigs, old_div(asb.dmd_time['dt'], asb.original_time['dt']))
+cacheA = asb.modes.dot(numpy.diag(eigs)).dot(numpy.linalg.pinv(asb.modes))
+cacheB = asb.B
+
+system = control.ss(cacheA, cacheB, numpy.identity(cacheA.shape[0]), numpy.zeros(cacheB.shape))
+Utils.CreateBodePlots(system, "DMDc")
+
+
+
+# eigs = numpy.power(mrasb.eigs, old_div(mrasb.dmd_time['dt'], mrasb.original_time['dt']))
+# cacheA = mrasb.modes.dot(numpy.diag(eigs)).dot(numpy.linalg.pinv(mrasb.modes))
+# cacheB = mrasb.B
+
+# system = control.ss(cacheA, cacheB, numpy.identity(cacheA.shape[0]), numpy.zeros(cacheB.shape))
+# Utils.CreateBodePlots(system, "MrDMD")
+
+
 exit()
+
+
+
+
+
+
+
+
 ##### ##### ########## ##### #####
 ## Build History
 ##

@@ -453,38 +453,55 @@ def DistanceImagToPole(x):
 
     return numpy.sqrt(distSq)
 
-def DistanceToZero(x):
+def DistanceToZero(x, thresh=1):
     #dSq = numpy.power(x, 2)
     accumDist = 0
 
     for i in x:
         ds = DistanceImagToPole(i)
-        accumDist += 1 if ds > 1 else ds # ds
+        accumDist += 1 if ds > thresh else 0# ds # ds
+        #accumDist += ds * (1 / len(x))
 
     return accumDist
 
 # Generates a low number when close to zero
 def GetFitness(x):
-    return DistanceToZero(x)
+    return DistanceToZero(x, 1.1)
 
 
 def GenerateModel(disturbs, states):
+
+    keras.backend.clear_session()
+
     predmodel = keras.Sequential(
     [
-        #layers.Embedding(input_shape=(100, 3), output_dim=128),
-        layers.Input(shape=(seqLength, states.shape[2] + disturbs.shape[2])),
-        # layers.LSTM(1024, return_sequences=True),
+        # #layers.Embedding(input_shape=(100, 3), output_dim=128),
+        # layers.Input(shape=(seqLength, states.shape[2] + disturbs.shape[2])),
+        # # layers.LSTM(1024, return_sequences=True),
+        # # layers.Dropout(0.1),
+        # # layers.LSTM(1024, return_sequences=True),
+        # #layers.GRU(64, return_sequences=True),
+        # #layers.LSTM(128, return_sequences=True),
+        # layers.GRU(256, return_sequences=True),
+        # layers.GRU(256, return_sequences=True),
+        # #layers.LSTM(1024, return_sequences=False),
         # layers.Dropout(0.1),
-        # layers.LSTM(1024, return_sequences=True),
+        # layers.GRU(256, return_sequences=False),
+        # #layers.LSTM(64, return_sequences=True),
+        # #layers.LSTM(64, return_sequences=True),
+        
+        # layers.Dense(256, activation='relu'),
+        # layers.Dense(states.shape[2])
+
+
+        # Larger network
+        layers.Input(shape=(seqLength, states.shape[2] + disturbs.shape[2])),
+        layers.LSTM(1024, return_sequences=True),
+        layers.Dropout(0.2),
+        layers.LSTM(1024, return_sequences=False),
         #layers.GRU(64, return_sequences=True),
         #layers.LSTM(128, return_sequences=True),
-        layers.GRU(256, return_sequences=True),
-        layers.GRU(256, return_sequences=True),
-        layers.GRU(256, return_sequences=True),
-        layers.GRU(256, return_sequences=True),
-        #layers.LSTM(1024, return_sequences=False),
-        layers.Dropout(0.1),
-        layers.GRU(256, return_sequences=False),
+        #layers.LSTM(512, return_sequences=False),
         #layers.LSTM(64, return_sequences=True),
         #layers.LSTM(64, return_sequences=True),
         
@@ -543,7 +560,7 @@ def CreateOKIDERA(l1, l2, i, step, dilation):
 def GetBestOKID(l1, l2, minmcs=1, markovs=20):
     bestIndex = 0
     #bestScore = 1 # Unstable above 1
-    bestScore = 5# Allow at least 1 failed pole
+    bestScore = 2# Allow at least 1 failed pole
 
     for i in range(minmcs, markovs):
         #print("Attempting to get {} markovs ({}/{})".format(i,i-minmcs,markovs-minmcs))
@@ -551,8 +568,8 @@ def GetBestOKID(l1, l2, minmcs=1, markovs=20):
             asb, score = CreateOKIDERA(l1,l2,i,step,dilation)
 
             #print("{} scored {}".format(i, score))
-            
-            if score < bestScore:
+
+            if score <= bestScore:
                 bestIndex = i
                 bestScore = score
 
@@ -637,3 +654,73 @@ def GetBestSindy(l1, l2):
     model.fit(l2.transpose(), u=l1.transpose(), quiet=False)
 
     return model, 1
+
+
+
+outnames = ["Tank Temperature", "Tank Water Volume", "Boiler Wattage"]
+innames = ["Inflow Rate", "Inflow Temperature", "PID Setpoint", "Outflow Rate"]
+
+def NameRowCol(x):
+    for ax, col in zip(x[0], outnames):
+        #ax.set_title(col)
+        ax.annotate(col, xy=(0.5, 1), xytext=(0, 5),
+                    xycoords='axes fraction', textcoords='offset points',
+                    size='large', ha='center', va='baseline')
+
+    for ax, col in zip(x[:,0], innames):
+        #.set_ylabel(col, rotation=0, size='large')
+        ax.annotate(col, xy=(0, 0.5), xytext=(-ax.yaxis.labelpad - 5, 0),
+                xycoords=ax.yaxis.label, textcoords='offset points',
+                size='large', ha='right', va='center')
+
+
+    return 
+    
+
+def CreateBodePlots(system, savename):
+    omega = control.freqplot.default_frequency_range(system)#, Hz=False, )
+
+    mag, phase, freq = system.freqresp(omega)
+
+    # Matplotlib
+    fig, axes = matplotlib.pyplot.subplots(mag.shape[1], mag.shape[0], dpi=120, figsize=(36,18))
+    fig2, axes2 = matplotlib.pyplot.subplots(mag.shape[1], mag.shape[0], dpi=120, figsize=(36,18))
+
+    freq = freq / (2*math.pi)
+
+    print(freq)
+    NameRowCol(axes)
+    NameRowCol(axes2)
+
+    fig.suptitle("Bode Plot - Magnitude")
+    fig2.suptitle("Bode Plot - Phase")
+
+    for o, outputs in enumerate(zip(mag,phase)):
+        outputMag, outputPhase = outputs
+        # print(freq.shape)
+        # print(outputMag.shape)
+        # print(outputPhase.shape)
+
+        for i, inputs in enumerate(zip(outputMag, outputPhase)): 
+            inputMag, inputPhase = inputs
+            # print(freq.shape)
+            # print(inputMag.shape)
+            # print(inputPhase.shape)
+
+            phaseInDegs = inputPhase * (180 / math.pi)
+
+            axes[i, o].plot(freq, inputMag)
+            ##axes[o, i].plot(freq, inputPhase)
+            axes[i, o].set_xlabel("Frequency (Hz)")
+            axes[i, o].set_ylabel("Magnitude")
+
+            axes2[i, o].plot(freq, phaseInDegs)
+            ##axes[o, i].plot(freq, inputPhase)
+            axes2[i, o].set_xlabel("Frequency (Hz)")
+            axes2[i, o].set_ylabel("Phase (Degrees)")
+            axes2[i, o].set_ylim(top=180, bottom=-180)
+
+
+    fig.savefig("{}_magnitude.png".format(savename))
+    fig2.savefig("{}_phase.png".format(savename))
+    

@@ -14,6 +14,9 @@ import numpy
 import cmath
 import math
 import Utils
+import scipy
+import slycot
+
 
 dilation = Utils.dilation
 seqLength = Utils.seqLength
@@ -91,7 +94,7 @@ markovs = 25#66
 
 bestIndex = 0
 #bestScore = 1 # Unstable above 1
-bestScore = 1.5# Allow at least 1 failed pole
+bestScore = 3.5# Allow at least 1 failed pole
 
 def DistanceImagToPole(x):
     rScale = x.real
@@ -125,13 +128,13 @@ def CreateOKIDERA(l1, l2, i, step, dilation):
     #a,b,c = modred.era.compute_ERA_model(kalman, 1500)
 
     print("Mats")
-    #print(a)
-    #print(b)
-    print(c)
-    print(c == numpy.identity(4))
+    print(a.shape)
+    print(b.shape)
+    print(c.shape)
+    # print(c == numpy.identity(4))
     print()
 
-    c = numpy.identity(3) * 0.5 + c * 0.5
+    #c = numpy.identity(3) * 0.5 + c * 0.5
 
     # Some *real* asserts
     assert(a.shape != (0,0))
@@ -147,9 +150,33 @@ def CreateOKIDERA(l1, l2, i, step, dilation):
     newScore = GetFitness(numpy.linalg.eigvals(a))
     print(newScore)
 
+    
+
     asb = control.ss(a,b,c, numpy.zeros((c.shape[0], b.shape[1])), step)
+    #asb = control.balred(asb, i)
     poles = control.pole(asb)
     score = GetFitness(poles)
+
+    
+
+
+    for p in poles:
+        rScale = p.real
+        iScale = p.imag
+
+        print(rScale, iScale)
+
+        plfig = matplotlib.pyplot.figure(i)
+        plplt = plfig.gca()
+        #matplotlib.pyplot.plot(f_fft / 1e3, np.angle(sig_fft), 'k',    label='FFT')
+        plplt.plot([rScale],  [iScale],   'ro--', label='Poles')
+        ##matplotlib.pyplot.xlim([f_fft.min()/1e3, f_fft.max()/1e3])
+        plplt.set_xlabel("Real")
+        plplt.set_ylabel("Imaginary")
+        #matplotlib.pyplot.legend()
+        plplt.set_title("Poles")
+    
+    plfig.savefig("AllPoles.{}.png".format(i))
 
     return asb, score
 
@@ -161,7 +188,7 @@ print(l1.shape)
 for i in range(minmcs, markovs):
     print("Attempting to get {} markovs ({}/{})".format(i,i-minmcs,markovs-minmcs))
     try:
-        asb, score = CreateOKIDERA(l1,l2,i,step,dilation)
+        asb, score = Utils.CreateOKIDERA(l1,l2,i,step,dilation)
 
         print("{} scored {}".format(i, score))
         
@@ -193,6 +220,29 @@ asb, score = CreateOKIDERA(l1, l2 ,bestIndex, step, dilation)
 
 with open("Pickle.era", "wb+") as f:
     pickle.dump(asb, f)
+
+Utils.CreateBodePlots(asb, "OKIDERA")
+    
+
+# A,B,C,D = control.ssdata(asb)
+
+# scipylti = asb.returnScipySignalLTI()
+
+# for outputs in enumerate(scipylti):
+#     for inputs in enumerate(outputs):
+#         print(inputs)
+#         w, mag, phase = scipy.signal.bode(inputs)
+
+#         print(w.shape)
+#         print(mag.shape)
+#         print(phase.shape)
+
+
+# # Suppress ragged array 
+# ragged = numpy.array([A,B,C,D], dtype=object)
+# sys = scipy.signal.StateSpace(ragged, dt=Utils.step)
+
+
 
 
 exit()
