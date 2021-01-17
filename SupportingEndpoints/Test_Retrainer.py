@@ -227,7 +227,8 @@ def RetrainFunction(history):
     evalBeginTime = time.perf_counter()
 
     print("Retraining")
-    ht = history.transpose()
+    ht = Utils.TailState(history, Utils.offset, rowsAreSamples=True)
+    ht = ht.transpose()
     l1 = ht[:4]#.transpose()
     l2 = ht[4:]#.transpose()
     model, score = Utils.GetBestOKID(l1, l2)

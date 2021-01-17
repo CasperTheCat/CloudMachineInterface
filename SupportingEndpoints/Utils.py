@@ -33,10 +33,15 @@ def ShuffleTogether(a ,b):
     p = numpy.random.permutation(len(a))
     return a[p], b[p]
 
-def TailState(x, minTail =100):
-    nFeatures = x.shape[0]
-    nSamples = x.shape[1]
-    xt = numpy.copy(x).transpose()
+def TailState(x, minTail =100, rowsAreSamples=False):
+    if not rowsAreSamples:
+        nFeatures = x.shape[0]
+        nSamples = x.shape[1]
+        xt = numpy.copy(x).transpose()
+    else:
+        nFeatures = x.shape[1]
+        nSamples = x.shape[0]
+        xt = numpy.copy(x) # Skip Transpose
 
     nTailLength = minTail#max(nSamples // 100, minTail)
     
@@ -56,7 +61,10 @@ def TailState(x, minTail =100):
     #     endArray[i] = x[-1] * math.exp(-i / (nTailLength / 4) )
 
     # endArray = 
-    return xt.transpose()
+    if rowsAreSamples:
+        return xt
+    else:
+        return xt.transpose()
 
 def MakeAccError(inVal, flip=True, useAbs=True):
     pairwiseErrors = numpy.array(inVal)
@@ -122,7 +130,7 @@ def MakeCacheName(x,y, td, width, modRange, disable, boilerPower=10000, tankageL
     name = "_".join([p1,p2,p3,p4])#,p5])
     return name + ".cache"
 
-def HandleStacking(disturbs, states, stack, width):
+def HandleStacking(disturbs, states, stack, width, tailed=False):
     if stack:
         disturbStacked = window_stack(disturbs, stepsize=1, width=width)
         stateStacked = window_stack(states, stepsize=1, width=width)
@@ -132,12 +140,14 @@ def HandleStacking(disturbs, states, stack, width):
 
         return disturbStacked, stateStacked, disturbs[width:], states[width:]
     else:
-        # with open(cachename, "wb+") as f:
-        #     pickle.dump((disturbs, states, disturbs[width:], states[width:]), f)
-        #return disturbs[:-width], states[:-width], disturbs[width:], states[width:]
-        return disturbs, states, disturbs[width:], states[width:]
+        if tailed:
+            disturbs = TailState(disturbs, offset, rowsAreSamples=True)
+            states = TailState(states, offset, rowsAreSamples=True)
+            return disturbs, states, disturbs[width:], states[width:]
+        else:
+            return disturbs, states, disturbs[width:], states[width:]
 
-def MakeData(x,y, td, width, modRange, disable, boilerPower=10000, tankageLimits=(5,75,80), initWaterTemp=30, initCapacity=35, step=1, stack=True, seed=0):
+def MakeData(x,y, td, width, modRange, disable, boilerPower=10000, tankageLimits=(5,75,80), initWaterTemp=30, initCapacity=35, step=1, stack=True, seed=0, tailed=False):
 
     cachename = MakeCacheName(x,y,td,width,modRange,disable,boilerPower,tankageLimits,initWaterTemp,initCapacity,step,stack,seed)
     print(cachename)
@@ -147,7 +157,7 @@ def MakeData(x,y, td, width, modRange, disable, boilerPower=10000, tankageLimits
         print("Using Cache")
         with open(cachename, "rb+") as f:
             a,b = pickle.load(f)
-            return HandleStacking(a, b, stack, width)
+            return HandleStacking(a, b, stack, width, tailed)
             #return a,b,c,d
 
 
@@ -274,7 +284,7 @@ def MakeData(x,y, td, width, modRange, disable, boilerPower=10000, tankageLimits
     with open(cachename, "wb+") as f:
             pickle.dump((disturbs, states), f)
 
-    return HandleStacking(disturbs, states, stack, width)
+    return HandleStacking(disturbs, states, stack, width, tailed)
 
     # if stack:
     #     disturbStacked = window_stack(disturbs, stepsize=1, width=width)
@@ -544,9 +554,9 @@ def CreateOKIDERA(l1, l2, i, step, dilation):
     #@c = numpy.identity(3)
 
     ### Test Asserts
-    # assert(a.shape == (3,3))
-    # assert(b.shape == (3,4))
-    # assert(c.shape == (3,3))
+    assert(a.shape == (3,3))
+    assert(b.shape == (3,4))
+    assert(c.shape == (3,3))
 
     newScore = GetFitness(numpy.linalg.eigvals(a))
     #print(newScore)
@@ -560,7 +570,7 @@ def CreateOKIDERA(l1, l2, i, step, dilation):
 def GetBestOKID(l1, l2, minmcs=1, markovs=20):
     bestIndex = 0
     #bestScore = 1 # Unstable above 1
-    bestScore = 2# Allow at least 1 failed pole
+    bestScore = 3# Allow at least 1 failed pole
 
     for i in range(minmcs, markovs):
         #print("Attempting to get {} markovs ({}/{})".format(i,i-minmcs,markovs-minmcs))
@@ -638,7 +648,7 @@ def GetBestMrDMD(l1, l2):
 
 def GetBestSindy(l1, l2):
     features = pysindy.PolynomialLibrary(degree=5)
-    optimiser = pysindy.STLSQ(threshold=0.0025, max_iter=2000000)
+    optimiser = pysindy.STLSQ(threshold=0.0025, max_iter=20000000)
     differential = pysindy.FiniteDifference(order=2)
 
     #print(l2.shape)

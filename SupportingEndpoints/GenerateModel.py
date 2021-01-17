@@ -29,6 +29,15 @@ disturbs3, states3, targetDisturbs3, targetStates3 = Utils.MakeData(allShape, 35
 disturbs4, states4, targetDisturbs4, targetStates4 = Utils.MakeData(allShape, 85, dilation, seqLength, 18, disabledisturb, step=step, stack=False, seed=8)
 disturbs5, states5, targetDisturbs5, targetStates5 = Utils.MakeData(allShape, 95, dilation, seqLength, 7, disabledisturb, step=step, stack=False, seed=11)
 
+
+
+offset = Utils.offset
+#l1 = states.transpose()
+#disturbs = Utils.TailState(disturbs, offset)
+print(disturbs.shape)
+exit()
+
+
 disturbs = numpy.concatenate((disturbs, disturbs2, disturbs3, disturbs4, disturbs5))
 states = numpy.concatenate((states, states2, states3, states4, states5))
 # targetDisturbs = numpy.concatenate((targetDisturbs, targetDisturbs2, targetDisturbs3))
@@ -45,7 +54,7 @@ inVal = numpy.concatenate((val_disturbs, val_states), axis=1)
 print(inFeed.shape)
 #inVal = numpy.concatenate((val_disturbs, val_states), axis=2)
 
-offset = Utils.offset
+
 
 #print(ins.shape)
 
@@ -62,10 +71,10 @@ l1 = l1t.transpose()
 l2 = l1t.transpose()
 v2 = v2t.transpose()
 
-#l1 = states.transpose()
-l1 = Utils.TailState(l1, offset)
-l2 = Utils.TailState(l2, offset)[4]
-v2 = Utils.TailState(v2, offset)
+# #l1 = states.transpose()
+# l1 = Utils.TailState(l1, offset)
+# l2 = Utils.TailState(l2, offset)[4]
+# v2 = Utils.TailState(v2, offset)
 
 # Retranspose
 l1t = l1.transpose()

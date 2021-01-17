@@ -26,13 +26,13 @@ disabledisturb = False
 allShape = 35000
 
 # 60k seconds, measuring every minute
-disturbs, states, targetDisturbs, targetStates = Utils.MakeData(allShape, 55, dilation, seqLength, 3, disabledisturb, step=step, stack=False, seed=0)
-disturbs2, states2, targetDisturbs2, targetStates2 = Utils.MakeData(allShape, 45, dilation, seqLength, 10, disabledisturb, step=step, stack=False, seed=2)
-disturbs3, states3, targetDisturbs3, targetStates3 = Utils.MakeData(allShape, 35, dilation, seqLength, 4, disabledisturb, step=step, stack=False, seed=5)
-disturbs4, states4, targetDisturbs4, targetStates4 = Utils.MakeData(allShape, 85, dilation, seqLength, 18, disabledisturb, step=step, stack=False, seed=8)
-disturbs5, states5, targetDisturbs5, targetStates5 = Utils.MakeData(allShape, 95, dilation, seqLength, 7, disabledisturb, step=step, stack=False, seed=11)
-disturbs6, states6, targetDisturbs6, targetStates6 = Utils.MakeData(allShape, 15, dilation, seqLength, 16, disabledisturb, step=step, stack=False, seed=16)
-disturbs7, states7, targetDisturbs7, targetStates7 = Utils.MakeData(allShape, 25, dilation, seqLength, 6, disabledisturb, step=step, stack=False, seed=19)
+disturbs, states, targetDisturbs, targetStates = Utils.MakeData(allShape, 55, dilation, seqLength, 3, disabledisturb, step=step, stack=False, seed=0, tailed=True)
+disturbs2, states2, targetDisturbs2, targetStates2 = Utils.MakeData(allShape, 45, dilation, seqLength, 10, disabledisturb, step=step, stack=False, seed=2, tailed=True)
+disturbs3, states3, targetDisturbs3, targetStates3 = Utils.MakeData(allShape, 35, dilation, seqLength, 4, disabledisturb, step=step, stack=False, seed=5, tailed=True)
+disturbs4, states4, targetDisturbs4, targetStates4 = Utils.MakeData(allShape, 85, dilation, seqLength, 18, disabledisturb, step=step, stack=False, seed=8, tailed=True)
+disturbs5, states5, targetDisturbs5, targetStates5 = Utils.MakeData(allShape, 95, dilation, seqLength, 7, disabledisturb, step=step, stack=False, seed=11, tailed=True)
+disturbs6, states6, targetDisturbs6, targetStates6 = Utils.MakeData(allShape, 15, dilation, seqLength, 16, disabledisturb, step=step, stack=False, seed=16, tailed=True)
+disturbs7, states7, targetDisturbs7, targetStates7 = Utils.MakeData(allShape, 25, dilation, seqLength, 6, disabledisturb, step=step, stack=False, seed=19, tailed=True)
 
 print(disturbs.shape)
 
@@ -176,7 +176,7 @@ def CreateOKIDERA(l1, l2, i, step, dilation):
         #matplotlib.pyplot.legend()
         plplt.set_title("Poles")
     
-    plfig.savefig("AllPoles.{}.png".format(i))
+    plfig.savefig("OKID_AllPoles.{}.png".format(i))
 
     return asb, score
 
