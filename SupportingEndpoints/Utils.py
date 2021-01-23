@@ -19,7 +19,7 @@ import tensorflow as tf
 from tensorflow import keras
 from tensorflow.keras import layers
 
-dilation = 1#(1/4) * (1/5)
+dilation = 0.1#(1/4) * (1/5)
 seqLength = 300#5 * 12
 step = 5
 offset = 230
@@ -27,6 +27,12 @@ Weights = [1, 1, 1, 1, 1, 1, 0.01, 0.100]
 ErrorWeights = [0, 0, 0, 0, 1.1, 1, 0.01]#, 0.01]
 StateOnlyWeight = [0, 0, 0, 0, 1, 1, 0.001, 0.1]
 bFlip = False
+
+def GetDetectableFrequency():
+    return 0.5 / (GetTimeStep())
+
+def GetTimeStep():
+    return step * dilation
 
 
 def ShuffleTogether(a ,b):
@@ -570,7 +576,7 @@ def CreateOKIDERA(l1, l2, i, step, dilation):
 def GetBestOKID(l1, l2, minmcs=1, markovs=20):
     bestIndex = 0
     #bestScore = 1 # Unstable above 1
-    bestScore = 3# Allow at least 1 failed pole
+    bestScore = 5# Allow at least 1 failed pole
 
     for i in range(minmcs, markovs):
         #print("Attempting to get {} markovs ({}/{})".format(i,i-minmcs,markovs-minmcs))
@@ -589,6 +595,8 @@ def GetBestOKID(l1, l2, minmcs=1, markovs=20):
         except Exception as e:
             #print("Fail on {}. {}".format(i,e))
             pass
+        except IndexError as e:
+            raise e
 
 
     #print("Using {} markovs".format(bestIndex))
@@ -648,7 +656,7 @@ def GetBestMrDMD(l1, l2):
 
 def GetBestSindy(l1, l2):
     features = pysindy.PolynomialLibrary(degree=5)
-    optimiser = pysindy.STLSQ(threshold=0.0025, max_iter=20000000)
+    optimiser = pysindy.STLSQ(threshold=0.0025, max_iter=2000000)
     differential = pysindy.FiniteDifference(order=2)
 
     #print(l2.shape)
@@ -688,7 +696,7 @@ def NameRowCol(x):
     
 
 def CreateBodePlots(system, savename):
-    omega = control.freqplot.default_frequency_range(system)#, Hz=False, )
+    omega = control.freqplot.default_frequency_range(system, Hz=True, number_of_samples=10000) * 100
 
     mag, phase, freq = system.freqresp(omega)
 
@@ -698,7 +706,7 @@ def CreateBodePlots(system, savename):
 
     freq = freq / (2*math.pi)
 
-    print(freq)
+    # print(freq)
     NameRowCol(axes)
     NameRowCol(axes2)
 
@@ -720,17 +728,140 @@ def CreateBodePlots(system, savename):
             phaseInDegs = inputPhase * (180 / math.pi)
 
             axes[i, o].plot(freq, inputMag)
+            axes[i, o].set_xscale("log")
+            axes[i, o].grid(which="both")
             ##axes[o, i].plot(freq, inputPhase)
             axes[i, o].set_xlabel("Frequency (Hz)")
             axes[i, o].set_ylabel("Magnitude")
 
+
             axes2[i, o].plot(freq, phaseInDegs)
             ##axes[o, i].plot(freq, inputPhase)
+            axes2[i, o].set_xscale("log")
+            axes2[i, o].grid(which="both")
             axes2[i, o].set_xlabel("Frequency (Hz)")
             axes2[i, o].set_ylabel("Phase (Degrees)")
+
             axes2[i, o].set_ylim(top=180, bottom=-180)
 
 
     fig.savefig("{}_magnitude.png".format(savename))
     fig2.savefig("{}_phase.png".format(savename))
+    fig.clf()
+    fig.clf()
+
     
+def CreatePolePlots(system, name):
+    fx = matplotlib.pyplot.figure(dpi=120, figsize=(18/2,18/2))
+    ax = fx.gca()
+    ax.set_ylim(-2, 2)
+    ax.set_xlim(-2, 2)
+    
+    for i in system.pole():
+        rScale = i.real
+        iScale = i.imag
+        ax.plot([rScale],  [iScale],  'ro--')
+
+    ##matplotlib.pyplot.xlim([f_fft.min()/1e3, f_fft.max()/1e3])
+    ax.set_xlabel("Real")
+    ax.set_ylabel("Imaginary")
+    ax.add_patch(matplotlib.pyplot.Circle((0,0), 1, fill=False))
+    #matplotlib.pyplot.legend()
+    ax.set_title("Poles")
+    fx.savefig("{}_poles.png".format(name))
+    fx.clf()
+
+def CreateBodeAndPolePlots(system, name):
+    CreateBodePlots(system, name)
+    CreatePolePlots(system, name)
+
+
+
+
+
+
+def DetectorFunction(history, feedback, timeBase, system):
+    # Transform the history U-vector
+    PreU = history.transpose()[:4].transpose()
+    # Transform with B
+    A,B,C,D = control.ssdata(system)
+
+    ModifiedOutput = numpy.zeros((PreU.shape[0], 3))
+
+    for signalIter in range(PreU.shape[0]):
+        workingData = PreU[signalIter]
+        ModU = B.dot(workingData)
+        ModifiedOutput[signalIter] = ModU[0]
+
+    for signalIter in range(3):
+
+        print("Stepping ", signalIter)
+        print(ModifiedOutput.shape)
+        workingData = ModifiedOutput.transpose()[signalIter]#[signalIter]
+        print(workingData.shape)
+        input()
+
+
+
+        freq, sig_f = czt.time2freq(numpy.arange(timeBase, timeBase + workingData.shape[0]) * GetTimeStep(), workingData)
+
+        # matplotlib.pyplot.figure(1)
+        # #matplotlib.pyplot.plot(f_fft / 1e3, np.angle(sig_fft), 'k',    label='FFT')
+        # matplotlib.pyplot.plot(freq / 1e3,  numpy.angle(sig_f),   'ro--', label='CZT')
+        # matplotlib.pyplot.xlabel("Frequency (kHz)")
+        # matplotlib.pyplot.ylabel("Signal phase")
+        # ##matplotlib.pyplot.xlim([f_fft.min()/1e3, f_fft.max()/1e3])
+        # #matplotlib.pyplot.legend()
+        # matplotlib.pyplot.title("Frequency-domain")
+
+        # matplotlib.pyplot.figure(2)
+        # #matplotlib.pyplot.plot(f_fft / 1e3, np.angle(sig_fft), 'k',    label='FFT')
+        # matplotlib.pyplot.plot(freq / 1e3,  numpy.abs(sig_f),   'ro--', label='CZT')
+        # matplotlib.pyplot.xlabel("Frequency (kHz)")
+        # matplotlib.pyplot.ylabel("Signal mag")
+        # ##matplotlib.pyplot.xlim([f_fft.min()/1e3, f_fft.max()/1e3])
+        # #matplotlib.pyplot.legend()
+        # matplotlib.pyplot.title("Frequency-domain")
+
+        # Decompile to real and imag compo
+        # zU = e^(z * dt)
+        # ln(zU) = z * dt
+        # z = ln(zU) / dt
+        
+        poles = 0
+
+        for cmptePle in zip(freq, sig_f):
+            # So
+            # We would like to compute the real and imaginary components of the number
+            # sig_F
+            #tScore = Utils.GetFitness(cmptePle[1])
+
+            rScale = cmptePle[1].real
+            iScale = cmptePle[1].imag
+
+            print(rScale, iScale)
+
+            input()
+
+            matplotlib.pyplot.figure(signalIter)
+            #matplotlib.pyplot.plot(f_fft / 1e3, np.angle(sig_fft), 'k',    label='FFT')
+            matplotlib.pyplot.plot([rScale],  [iScale],   'ro--', label='CZT')
+            ##matplotlib.pyplot.xlim([f_fft.min()/1e3, f_fft.max()/1e3])
+            matplotlib.pyplot.xlabel("Real")
+            matplotlib.pyplot.ylabel("Imaginary")
+            #matplotlib.pyplot.legend()
+            matplotlib.pyplot.title("Frequency-domain")
+
+        
+        input()    
+
+
+    exit()
+
+
+
+
+    return False
+
+
+

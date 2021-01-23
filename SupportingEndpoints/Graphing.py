@@ -115,7 +115,7 @@ class AGraphHolder():
         else:
             return predictionFunction(lh, localXhat, i), nextVal
 
-    def TestRetrainLive(self, maxY, solvedSize, TargetDPI, iTime, color, predictionFunction, retrainCallback, thresholdFunction, loopLimit, labelOverrides=None, label2Overrides=None, backOffset = 15, futureOffset = 15, historyLength = 1000 + Utils.seqLength, detectorFunction=None, filterFunction=None, retrainFilter=None):
+    def TestRetrainLive(self, maxY, solvedSize, TargetDPI, iTime, color, predictionFunction, retrainCallback, thresholdFunction, loopLimit, labelOverrides=None, label2Overrides=None, backOffset = 15, futureOffset = 15, historyLength = 1000 + Utils.seqLength, detectorFunction=None, filterFunction=None, retrainFilter=None, modulator=None):
         dataP = []
         dataT = []
         dataS = []
@@ -246,7 +246,7 @@ class AGraphHolder():
                         
                         ## Detector
                         if (detectorFunction):
-                            detectorFunction(self.history[arrLength - (Utils.seqLength + backOffset):arrLength - backOffset], xhat, i)      
+                            detectorFunction(self.history, xhat, i)#[arrLength - (Utils.seqLength + backOffset):arrLength - backOffset], xhat, i)      
 
                         # ERROR
                         errorTracking += stepError
@@ -265,16 +265,18 @@ class AGraphHolder():
                     self.history = self.history[1:]
                     self.history = numpy.concatenate((self.history, [numpy.array(hist)]))
 
+                    if (modulator):
+                        self.boilerController.SetTarget(modulator(self.spTarg, i))
+                    else:
+                        # Update Everything
+                        if i == self.dlp:
+                            # Back
+                            print("Setting {}".format(i))
+                            self.boilerController.SetTarget(self.spTarg)
 
-                    # Update Everything
-                    if i == self.dlp:
-                        # Back
-                        print("Setting {}".format(i))
-                        self.boilerController.SetTarget(self.spTarg)
-
-                    if i > self.dlp:
-                        mod = math.sin(i * 0.05) * 10 #** 640 * 30
-                        self.boilerController.SetTarget(self.spTarg - math.floor(mod))
+                        if i > self.dlp:
+                            mod = math.sin(i * 0.05) * 10 #** 640 * 30
+                            self.boilerController.SetTarget(self.spTarg - math.floor(mod))
 
                     ax.collections.clear()
                     ax2.collections.clear()
@@ -328,40 +330,40 @@ class AGraphHolder():
                     predClose = predClose[at:]
 
 
-                    dra2.set_xdata(numpy.arange(0, len(predDataP)) * self.simulator.timeDilation)
+                    dra2.set_xdata(numpy.arange(0, len(predDataP)) * self.simulator.timeDilation * step)
                     dra2.set_ydata(predDataP)
-                    two2.set_xdata(numpy.arange(0, len(predDataP)) * self.simulator.timeDilation)
+                    two2.set_xdata(numpy.arange(0, len(predDataP)) * self.simulator.timeDilation * step)
                     two2.set_ydata(predDataT)
-                    three2.set_xdata(numpy.arange(0, len(predDataP)) * self.simulator.timeDilation)
+                    three2.set_xdata(numpy.arange(0, len(predDataP)) * self.simulator.timeDilation * step)
                     three2.set_ydata(predDataS)
-                    four2.set_xdata(numpy.arange(0, len(predDataP)) * self.simulator.timeDilation)
+                    four2.set_xdata(numpy.arange(0, len(predDataP)) * self.simulator.timeDilation * step)
                     four2.set_ydata(predDataX)
-                    warn2.set_xdata(numpy.arange(0, len(predClose)) * self.simulator.timeDilation)
+                    warn2.set_xdata(numpy.arange(0, len(predClose)) * self.simulator.timeDilation * step)
                     warn2.set_ydata(predClose)
 
                     
-                    dra.set_xdata(numpy.arange(0, len(dataP)) * self.simulator.timeDilation)
+                    dra.set_xdata(numpy.arange(0, len(dataP)) * self.simulator.timeDilation * step)
                     dra.set_ydata(dataP)
-                    two.set_xdata(numpy.arange(0, len(dataP)) * self.simulator.timeDilation)
+                    two.set_xdata(numpy.arange(0, len(dataP)) * self.simulator.timeDilation * step)
                     two.set_ydata(dataT)
-                    three.set_xdata(numpy.arange(0, len(dataP)) * self.simulator.timeDilation)
+                    three.set_xdata(numpy.arange(0, len(dataP)) * self.simulator.timeDilation * step)
                     three.set_ydata(dataS)
-                    four.set_xdata(numpy.arange(0, len(dataP)) * self.simulator.timeDilation)
+                    four.set_xdata(numpy.arange(0, len(dataP)) * self.simulator.timeDilation * step)
                     four.set_ydata(dataX)
-                    warn.set_xdata(numpy.arange(0, len(dataP)) * self.simulator.timeDilation)
+                    warn.set_xdata(numpy.arange(0, len(dataP)) * self.simulator.timeDilation * step)
                     warn.set_ydata(dataClose)
-                    warnfar.set_xdata(numpy.arange(0, len(dataP)) * self.simulator.timeDilation)
+                    warnfar.set_xdata(numpy.arange(0, len(dataP)) * self.simulator.timeDilation * step)
                     warnfar.set_ydata(dataFar)
-                    # warndiff.set_xdata(numpy.arange(0, len(dataP)) * self.simulator.timeDilation)
+                    # warndiff.set_xdata(numpy.arange(0, len(dataP)) * self.simulator.timeDilation * step)
                     # warndiff.set_ydata(dataDiff)
 
 
 
-                    ax.set_xlim(left=-5, right=len(predDataP) * self.simulator.timeDilation +5)
-                    #ax2.fill_between(x, len(dataP) * self.simulator.timeDilation +5, len(predDataP) * self.simulator.timeDilation +5, facecolor='green', alpha=0.5)
-                    #ax2.fill_between(numpy.arange(0, len(dataP)) * self.simulator.timeDilation, 0, 1, where=x > (len(dataP) * self.simulator.timeDilation), facecolor='green', alpha=0.5)
-                    ax2.fill_between(numpy.arange(len(dataP) - 1, len(predDataP)) * self.simulator.timeDilation, 0, maxY, facecolor='purple', alpha=0.25)
-                    ax2.fill_between(numpy.arange(len(dataP) - (1 + backOffset), len(dataP)) * self.simulator.timeDilation, 0, maxY, facecolor='pink', alpha=0.25)
+                    ax.set_xlim(left=-5, right=len(predDataP) * self.simulator.timeDilation * step +5)
+                    #ax2.fill_between(x, len(dataP) * self.simulator.timeDilation * step +5, len(predDataP) * self.simulator.timeDilation * step +5, facecolor='green', alpha=0.5)
+                    #ax2.fill_between(numpy.arange(0, len(dataP)) * self.simulator.timeDilation * step, 0, 1, where=x > (len(dataP) * self.simulator.timeDilation * step), facecolor='green', alpha=0.5)
+                    ax2.fill_between(numpy.arange(len(dataP) - 1, len(predDataP)) * self.simulator.timeDilation * step, 0, maxY, facecolor='purple', alpha=0.25)
+                    ax2.fill_between(numpy.arange(len(dataP) - (1 + backOffset), len(dataP)) * self.simulator.timeDilation * step, 0, maxY, facecolor='pink', alpha=0.25)
 
                     #ax = pd.plot()
                     fig.canvas.draw()
@@ -394,7 +396,7 @@ class AGraphHolder():
             #input("Press Any Key")
             pass
 
-    def TestRetraining(self, predictionFunction, retrainCallback, thresholdFunction, loopLimit, backOffset = 1, futureOffset = 0, historyLength = 1000 + Utils.seqLength, detectorFunction=None, filterFunction=None, retrainFilter=None):
+    def TestRetraining(self, predictionFunction, retrainCallback, thresholdFunction, loopLimit, backOffset = 1, futureOffset = 0, historyLength = 1000 + Utils.seqLength, detectorFunction=None, filterFunction=None, retrainFilter=None, modulator=None):
         offsetResults = {}
         retrainError={}
         errorTracking = 0.0
@@ -464,7 +466,7 @@ class AGraphHolder():
 
             ## Detector
             if (detectorFunction):
-                detectorFunction(self.history[arrLength - (Utils.seqLength + backOffset):arrLength - backOffset], xhat, i)
+                detectorFunction(self.history, xhat, i)#[arrLength - (Utils.seqLength + backOffset):arrLength - backOffset], xhat, i)
 
             # ERROR
             errorTracking += stepError
@@ -486,6 +488,9 @@ class AGraphHolder():
             # Add
             self.history = self.history[1:]
             self.history = numpy.concatenate((self.history, [numpy.array(hist)]))
+
+            if (modulator):
+                self.boilerController.SetTarget(modulator(self.spTarg, i))
 
             # Use last frame time because we want to include *this* computation in the avg
             totalFrameTime = self.lastFrameTime

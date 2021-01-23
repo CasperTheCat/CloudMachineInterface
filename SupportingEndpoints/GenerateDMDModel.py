@@ -115,9 +115,10 @@ eigs = numpy.power(asb.eigs, old_div(asb.dmd_time['dt'], asb.original_time['dt']
 cacheA = asb.modes.dot(numpy.diag(eigs)).dot(numpy.linalg.pinv(asb.modes))
 cacheB = asb.B
 
-system = control.ss(cacheA, cacheB, numpy.identity(cacheA.shape[0]), numpy.zeros(cacheB.shape))
-Utils.CreateBodePlots(system, "DMDc")
+system = control.ss(cacheA, cacheB, numpy.identity(cacheA.shape[0]), numpy.zeros(cacheB.shape), Utils.GetTimeStep())
+Utils.CreateBodeAndPolePlots(system, "DMDc")
 
+print(cacheA.shape)
 
 
 # eigs = numpy.power(mrasb.eigs, old_div(mrasb.dmd_time['dt'], mrasb.original_time['dt']))

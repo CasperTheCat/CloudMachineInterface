@@ -125,7 +125,7 @@ simulator = CSimulator(1, 600000)
 spTemp = 55
 spTarg = 75
 seed = 0
-step = Utils.step
+step = Utils.GetTimeStep()
 dlp = 150
 
 if len(sys.argv) > 1:
@@ -292,7 +292,7 @@ def DetectorFunction(history, feedback, timeBase):
 
 
 
-        freq, sig_f = czt.time2freq(numpy.arange(timeBase, timeBase + workingData.shape[0]) * Utils.step, workingData)
+        freq, sig_f = czt.time2freq(numpy.arange(timeBase, timeBase + workingData.shape[0]) * Utils.GetTimeStep(), workingData)
 
         # matplotlib.pyplot.figure(1)
         # #matplotlib.pyplot.plot(f_fft / 1e3, np.angle(sig_fft), 'k',    label='FFT')
@@ -339,7 +339,7 @@ def DetectorFunction(history, feedback, timeBase):
             matplotlib.pyplot.xlabel("Real")
             matplotlib.pyplot.ylabel("Imaginary")
             #matplotlib.pyplot.legend()
-            matplotlib.pyplot.title("Frequency-domain")
+            matplotlib.pyplot.title(Utils.outnames[signalIter])
 
         
         input()    
@@ -483,11 +483,14 @@ def DMDc_RetrainFunction(history):
     timePassed = time.perf_counter() - evalBeginTime
     costToRT.append(timePassed)
 
+
 def DMDc_DetectorFunction(history, feedback, timeBase):
     global dmdModel
+    global rtTimes
 
+    if(rtTimes == 0):
+        return False
 
-    return False
     # yShift = fftshift(history[-1]) # shift of the step function
     # Fourier = scipy.fft(yShift) # Fourier transform of y implementing the FFT
     # Fourier = fftshift(Fourier) # inverse shift of the Fourier Transform
@@ -506,45 +509,60 @@ def DMDc_DetectorFunction(history, feedback, timeBase):
 
     # Transform the history U-vector
     PreU = history.transpose()[:4].transpose()
+
+    # Modify
+    # PreU = PreU.transpose()
+    # PreU = PreU + numpy.sin(numpy.arange(0, history.shape[0]) * 100000) * 10 + numpy.cos(2 + numpy.arange(0, history.shape[0]) * 5) * 10
+    # PreU = PreU.transpose()
+
     # Transform with B
     B = dmdModel.B
 
     ModifiedOutput = numpy.zeros((PreU.shape[0], 3))
 
-    for signalIter in range(PreU.shape[0]):
-        workingData = PreU[signalIter]
+    print(PreU.shape)
+    print("NB: Max Freq: {}".format(Utils.GetDetectableFrequency()))
+
+    for sample in range(PreU.shape[0]):
+        workingData = PreU[sample]
         ModU = B.dot(workingData)
-        ModifiedOutput[signalIter] = ModU[0]
+        ModifiedOutput[sample] = ModU
 
     for signalIter in range(3):
 
-        print("Stepping ", signalIter)
-        print(ModifiedOutput.shape)
+        #print("Stepping ", signalIter)
+        #print(ModifiedOutput.shape)
         workingData = ModifiedOutput.transpose()[signalIter]#[signalIter]
-        print(workingData.shape)
-        input()
+        #print(workingData.shape)
+        #input()
 
 
 
-        freq, sig_f = czt.time2freq(numpy.arange(timeBase, timeBase + workingData.shape[0]) * Utils.step, workingData)
+        freq, sig_f = czt.time2freq(numpy.arange(timeBase, timeBase + workingData.shape[0]) * Utils.GetTimeStep(), workingData)
 
-        # matplotlib.pyplot.figure(1)
-        # #matplotlib.pyplot.plot(f_fft / 1e3, np.angle(sig_fft), 'k',    label='FFT')
-        # matplotlib.pyplot.plot(freq / 1e3,  numpy.angle(sig_f),   'ro--', label='CZT')
-        # matplotlib.pyplot.xlabel("Frequency (kHz)")
-        # matplotlib.pyplot.ylabel("Signal phase")
-        # ##matplotlib.pyplot.xlim([f_fft.min()/1e3, f_fft.max()/1e3])
-        # #matplotlib.pyplot.legend()
-        # matplotlib.pyplot.title("Frequency-domain")
+        f0 = matplotlib.pyplot.figure(8, dpi=120, figsize=(36,18))
+        a0 = f0.gca()
+        #matplotlib.pyplot.plot(f_fft / 1e3, np.angle(sig_fft), 'k',    label='FFT')
+        a0.plot(freq,  numpy.angle(sig_f),   'ro--', label='CZT')
+        a0.set_xlabel("Frequency (Hz)")
+        a0.set_ylabel("Signal phase")
+        ##matplotlib.pyplot.xlim([f_fft.min()/1e3, f_fft.max()/1e3])
+        #matplotlib.pyplot.legend()
+        a0.set_title(Utils.outnames[signalIter])
+        f0.savefig("{}_WWPhase.png".format(signalIter))
+        f0.clf()
 
-        # matplotlib.pyplot.figure(2)
-        # #matplotlib.pyplot.plot(f_fft / 1e3, np.angle(sig_fft), 'k',    label='FFT')
-        # matplotlib.pyplot.plot(freq / 1e3,  numpy.abs(sig_f),   'ro--', label='CZT')
-        # matplotlib.pyplot.xlabel("Frequency (kHz)")
-        # matplotlib.pyplot.ylabel("Signal mag")
-        # ##matplotlib.pyplot.xlim([f_fft.min()/1e3, f_fft.max()/1e3])
-        # #matplotlib.pyplot.legend()
-        # matplotlib.pyplot.title("Frequency-domain")
+        f1 = matplotlib.pyplot.figure(9, dpi=120, figsize=(36,18))
+        a1 = f1.gca()
+        #matplotlib.pyplot.plot(f_fft / 1e3, np.angle(sig_fft), 'k',    label='FFT')
+        a1.plot(freq,  numpy.abs(sig_f),   'ro--', label='CZT')
+        a1.set_xlabel("Frequency (Hz)")
+        a1.set_ylabel("Signal Mag. (dB)")
+        a1.set_title(Utils.outnames[signalIter])
+        ##matplotlib.pyplot.xlim([f_fft.min()/1e3, f_fft.max()/1e3])
+        #matplotlib.pyplot.legend()
+        f1.savefig("{}_WWMag.png".format(signalIter))
+        f1.clf()
 
         # Decompile to real and imag compo
         # zU = e^(z * dt)
@@ -552,6 +570,9 @@ def DMDc_DetectorFunction(history, feedback, timeBase):
         # z = ln(zU) / dt
         
         poles = 0
+
+        fx = matplotlib.pyplot.figure(signalIter + 10, dpi=120, figsize=(36,18))
+        ax = fx.gca()
 
         for cmptePle in zip(freq, sig_f):
             # So
@@ -562,24 +583,27 @@ def DMDc_DetectorFunction(history, feedback, timeBase):
             rScale = cmptePle[1].real
             iScale = cmptePle[1].imag
 
-            print(rScale, iScale)
+            #print(rScale, iScale)
 
-            input()
+            #input()
 
-            matplotlib.pyplot.figure(signalIter)
+            
             #matplotlib.pyplot.plot(f_fft / 1e3, np.angle(sig_fft), 'k',    label='FFT')
-            matplotlib.pyplot.plot([rScale],  [iScale],   'ro--', label='CZT')
+            ax.plot([rScale],  [iScale],   'ro--', label='CZT')
             ##matplotlib.pyplot.xlim([f_fft.min()/1e3, f_fft.max()/1e3])
-            matplotlib.pyplot.xlabel("Real")
-            matplotlib.pyplot.ylabel("Imaginary")
+            ax.set_xlabel("Real")
+            ax.set_ylabel("Imaginary")
             #matplotlib.pyplot.legend()
-            matplotlib.pyplot.title("Frequency-domain")
+            ax.set_title(Utils.outnames[signalIter])
 
-        
-        input()    
+        fx.savefig("{}_WW.png".format(signalIter))
+        fx.clf()
+
+    print("Wait")        
+    input()    
 
 
-    exit()
+
 
 
 
@@ -701,7 +725,7 @@ def ThresholdFunction(signedError, absoluteError):
     global stepsSinceLastTrain
     global tholdRTTimes
 
-    shouldRetrainOnFixed = stepsSinceLastTrain * Utils.dilation >= 500
+    shouldRetrainOnFixed = stepsSinceLastTrain * Utils.GetTimeStep() >= 500
     shouldRetrainOnError = numpy.sum(absoluteError) > 1000
 
     stepsSinceLastTrain += 1
@@ -731,68 +755,66 @@ def ZeroAllVars():
     rtTimes = 0
     tholdRTTimes = 0
 
+
+def ModulateSP_LF(base, i):
+    if i > 250:
+        tgFreqHz = 1.1
+
+        # Each sample adds 1 radians per ST
+        # A Hz is 2Pi rads
+        SampleTime = Utils.GetTimeStep()
+        radsPerSecond = 1 / SampleTime
+        hertz = radsPerSecond / (math.pi * 2)
+
+        freqMul = tgFreqHz / hertz
+
+        #print(freqMul, hertz)
+
+        return base + 100 * math.sin(i * freqMul)
+    else:
+        return base
+
+
+
 comboBox = [
-    (Sindy_EvalFunction, Sindy_RetrainFunction, Sindy_DetectorFunction, None, None, "Sindy.dat"),
-    (DMDc_EvalFunction, DMDc_RetrainFunction, DMDc_DetectorFunction, None, None, "DMDc.dat"),
-    (EvalFunction, RetrainFunction, DetectorFunction, None, None, "OKIDERA.dat"),
-    #(MrDMD_EvalFunction, MrDMD_RetrainFunction, MrDMD_DetectorFunction, "MrDMD.dat"),
-    (BaseEvalFunction, BaseRetrainFunction, BaseDetectorFunction, None, None, "BaseCase.dat"),
+    # (Sindy_EvalFunction, Sindy_RetrainFunction, Sindy_DetectorFunction, None, None, "Sindy.dat"),
+    (DMDc_EvalFunction, DMDc_RetrainFunction, DMDc_DetectorFunction, None, None, ModulateSP_LF, "DMDc.dat"),
+    # (EvalFunction, RetrainFunction, DetectorFunction, None, None, "OKIDERA.dat"),
+    # #(MrDMD_EvalFunction, MrDMD_RetrainFunction, MrDMD_DetectorFunction, "MrDMD.dat"),
+    # (BaseEvalFunction, BaseRetrainFunction, BaseDetectorFunction, None, None, "BaseCase.dat"),
 
 
-    (EvalFunction, RetrainFunction, DetectorFunction, FilterFrequenciesByPower, None, "OKIDERA_FilterData.dat"),
-    (Sindy_EvalFunction, Sindy_RetrainFunction, Sindy_DetectorFunction, FilterFrequenciesByPower, None, "Sindy_FilterData.dat"),
-    #(MrDMD_EvalFunction, MrDMD_RetrainFunction, MrDMD_DetectorFunction, "MrDMD.dat"),
-    (DMDc_EvalFunction, DMDc_RetrainFunction, DMDc_DetectorFunction, FilterFrequenciesByPower, None, "DMDc_FilterData.dat"),
-    (BaseEvalFunction, BaseRetrainFunction, BaseDetectorFunction, FilterFrequenciesByPower, None, "BaseCase_FilterData.dat"),
+    # (EvalFunction, RetrainFunction, DetectorFunction, FilterFrequenciesByPower, None, "OKIDERA_FilterData.dat"),
+    # (Sindy_EvalFunction, Sindy_RetrainFunction, Sindy_DetectorFunction, FilterFrequenciesByPower, None, "Sindy_FilterData.dat"),
+    # #(MrDMD_EvalFunction, MrDMD_RetrainFunction, MrDMD_DetectorFunction, "MrDMD.dat"),
+    # (DMDc_EvalFunction, DMDc_RetrainFunction, DMDc_DetectorFunction, FilterFrequenciesByPower, None, "DMDc_FilterData.dat"),
+    # (BaseEvalFunction, BaseRetrainFunction, BaseDetectorFunction, FilterFrequenciesByPower, None, "BaseCase_FilterData.dat"),
     
 
-    (EvalFunction, RetrainFunction, DetectorFunction, None, FilterFrequenciesByPower, "OKIDERA_FilterTrain.dat"), ## EXCLUDED DUE TO CRASH
-    (Sindy_EvalFunction, Sindy_RetrainFunction, Sindy_DetectorFunction, None, FilterFrequenciesByPower, "Sindy_FilterTrain.dat"),
-    #(MrDMD_EvalFunction, MrDMD_RetrainFunction, MrDMD_DetectorFunction, "MrDMD.dat"),
-    (DMDc_EvalFunction, DMDc_RetrainFunction, DMDc_DetectorFunction, None, FilterFrequenciesByPower, "DMDc_FilterTrain.dat"),
-    (BaseEvalFunction, BaseRetrainFunction, BaseDetectorFunction, None, FilterFrequenciesByPower, "BaseCase_FilterTrain.dat"),
+    # (EvalFunction, RetrainFunction, DetectorFunction, None, FilterFrequenciesByPower, "OKIDERA_FilterTrain.dat"), ## EXCLUDED DUE TO CRASH
+    # (Sindy_EvalFunction, Sindy_RetrainFunction, Sindy_DetectorFunction, None, FilterFrequenciesByPower, "Sindy_FilterTrain.dat"),
+    # #(MrDMD_EvalFunction, MrDMD_RetrainFunction, MrDMD_DetectorFunction, "MrDMD.dat"),
+    # (DMDc_EvalFunction, DMDc_RetrainFunction, DMDc_DetectorFunction, None, FilterFrequenciesByPower, "DMDc_FilterTrain.dat"),
+    # (BaseEvalFunction, BaseRetrainFunction, BaseDetectorFunction, None, FilterFrequenciesByPower, "BaseCase_FilterTrain.dat"),
 
-    (ML_EvalFunction, ML_RetrainFunction, ML_DetectorFunction, None, None, "Recurrent.dat"),
-    (ML_EvalFunction, ML_RetrainFunction, ML_DetectorFunction, None, FilterFrequenciesByPower, "Recurrent_FilterTrain.dat"),
-    (ML_EvalFunction, ML_RetrainFunction, ML_DetectorFunction, FilterFrequenciesByPower, None, "Recurrent_FilterData.dat"),
+    # (ML_EvalFunction, ML_RetrainFunction, ML_DetectorFunction, None, None, "Recurrent.dat"),
+    # (ML_EvalFunction, ML_RetrainFunction, ML_DetectorFunction, None, FilterFrequenciesByPower, "Recurrent_FilterTrain.dat"),
+    # (ML_EvalFunction, ML_RetrainFunction, ML_DetectorFunction, FilterFrequenciesByPower, None, "Recurrent_FilterData.dat"),
    
 ]
 
-for evf, rtf, dtf, flt, rtfflt, name in comboBox:
+for evf, rtf, dtf, flt, rtfflt, modu, name in comboBox:
     ZeroAllVars()
 
-    if os.path.exists("Error_" + name):
-        print("Skipping {}".format(name))
-        continue
-
     graphing = Graphing.AGraphHolder(seed, spTemp, spTarg, dlp)
-    _, results, timeResults = graphing.TestRetraining(evf, rtf, ThresholdFunction, 16384, detectorFunction=dtf, filterFunction=flt, retrainFilter=rtfflt)
+    _, results, timeResults = graphing.TestRetraining(evf, rtf, ThresholdFunction, 16384, detectorFunction=dtf, filterFunction=flt, retrainFilter=rtfflt, modulator=modu)
     #graphing.TestRetrainLive(maxY, solvedSize, TargetDPI, iTime, color, evf, rtf, ThresholdFunction, 300, ["Temperature (C)", "Heater Power (kW)", "Water Level (L)", "Target Temperature (C)", "Cosine Sim.", "Error"], filterFunction=flt, retrainFilter=rtfflt)
 
-    with open("Error_" + name, "wb+") as f:
-        pickle.dump(results, f)
-
-    with open("IncTime_" + name, "wb+") as f:
-        pickle.dump(timeResults, f)
-
-    with open("EvalTime_" + name, "wb+") as f:
-        pickle.dump(cost, f)
-
-    with open("RetrainTime_" + name, "wb+") as f:
-        pickle.dump(costToRT, f)
 
 
-    print("{} -- Infer Cost: {}. RT Cost {} ({}s)".format(name, numpy.sum(cost), numpy.sum(costToRT), numpy.mean(costToRT)))
-    print("{} -- Retrains {}. (Fixed RTs {})".format(name, rtTimes, tholdRTTimes))
-
-    with open("Log_" + name, "wb+") as f:
-        f.write("{} -- Infer Cost: {}. RT Cost {} ({}s)".format(name, numpy.sum(cost), numpy.sum(costToRT), numpy.mean(costToRT)).encode())
-        f.write("{} -- Retrains {}. (Fixed RTs {})".format(name, rtTimes, tholdRTTimes).encode())
-
-
-print("Wait")
 input()
 exit()
+
 # cost = 0
 # costml = 0
 # stepsSinceLastTrain = 0
