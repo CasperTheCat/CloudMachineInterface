@@ -20,8 +20,8 @@ from ProcessSimulation import AActor, ABoiler, ABoilerController
 import time
 import matplotlib
 import matplotlib.pyplot
-matplotlib.interactive(True)
-matplotlib.use("TkAgg") 
+# matplotlib.interactive(True)
+# matplotlib.use("TkAgg") 
 import numpy
 import math
 import sys
@@ -770,7 +770,7 @@ def ThresholdFunction(signedError, absoluteError):
     global stepsSinceLastTrain
     global tholdRTTimes
 
-    shouldRetrainOnFixed = stepsSinceLastTrain * Utils.GetTimeStep() >= 1000
+    shouldRetrainOnFixed = stepsSinceLastTrain > 1500 #* Utils.GetTimeStep() >= 1000
     shouldRetrainOnError = numpy.sum(absoluteError) > 1000
 
     stepsSinceLastTrain += 1
@@ -781,7 +781,7 @@ def ThresholdFunction(signedError, absoluteError):
         tholdRTTimes += 1
 
     if (shouldRetrainOnError or shouldRetrainOnFixed):
-        stepsSinceLastTrain = 0
+        #stepsSinceLastTrain = 0
         return True
 
     return False
@@ -802,8 +802,8 @@ def ZeroAllVars():
 
 
 def ModulateSP_LF(base, i):
-    if i > 0:
-        tgFreqHz = 1.1
+    if i >= 0:
+        tgFreqHz = 2.2
 
         # Each sample adds 1 radians per ST
         # A Hz is 2Pi rads
@@ -813,7 +813,7 @@ def ModulateSP_LF(base, i):
 
         freqMul = tgFreqHz / hertz
 
-        print(freqMul, hertz)
+        #print(freqMul, hertz)
 
         return base + 50 * math.sin(i * freqMul)
     else:
@@ -854,8 +854,8 @@ for evf, rtf, dtf, flt, rtfflt, modu, name in comboBox:
     ZeroAllVars()
 
     graphing = Graphing.AGraphHolder(seed, spTemp, spTarg, dlp)
-    #_, results, timeResults = graphing.TestRetraining(evf, rtf, ThresholdFunction, 16384, detectorFunction=dtf, filterFunction=flt, retrainFilter=rtfflt, modulator=modu)
-    graphing.TestRetrainLive(maxY, solvedSize, TargetDPI, iTime, color, evf, rtf, ThresholdFunction, 300, ["Temperature (C)", "Heater Power (kW)", "Water Level (L)", "Target Temperature (C)", "Cosine Sim.", "Error"], filterFunction=flt, retrainFilter=rtfflt, modulator=modu, detectorFunction=dtf)
+    _, results, timeResults = graphing.TestRetraining(evf, rtf, ThresholdFunction, 16384, detectorFunction=dtf, filterFunction=flt, retrainFilter=rtfflt, modulator=modu)
+    #graphing.TestRetrainLive(maxY, solvedSize, TargetDPI, iTime, color, evf, rtf, ThresholdFunction, 300, ["Temperature (C)", "Heater Power (kW)", "Water Level (L)", "Target Temperature (C)", "Cosine Sim.", "Error"], filterFunction=flt, retrainFilter=rtfflt, modulator=modu, detectorFunction=dtf)
 
 
 
