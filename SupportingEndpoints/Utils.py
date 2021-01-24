@@ -19,7 +19,7 @@ import tensorflow as tf
 from tensorflow import keras
 from tensorflow.keras import layers
 
-dilation = 0.1#(1/4) * (1/5)
+dilation = 1#(1/4) * (1/5)
 seqLength = 300#5 * 12
 step = 5
 offset = 230
@@ -27,6 +27,10 @@ Weights = [1, 1, 1, 1, 1, 1, 0.01, 0.100]
 ErrorWeights = [0, 0, 0, 0, 1.1, 1, 0.01]#, 0.01]
 StateOnlyWeight = [0, 0, 0, 0, 1, 1, 0.001, 0.1]
 bFlip = False
+
+def GetSimulatorFrequency():
+    return 100 / dilation
+
 
 def GetDetectableFrequency():
     return 0.5 / (GetTimeStep())
@@ -695,8 +699,8 @@ def NameRowCol(x):
     return 
     
 
-def CreateBodePlots(system, savename):
-    omega = control.freqplot.default_frequency_range(system, Hz=True, number_of_samples=10000) * 100
+def CreateBodePlots(system, savename, appendName):
+    omega = control.freqplot.default_frequency_range(system, Hz=True, number_of_samples=10000) * 10
 
     mag, phase, freq = system.freqresp(omega)
 
@@ -744,14 +748,18 @@ def CreateBodePlots(system, savename):
 
             axes2[i, o].set_ylim(top=180, bottom=-180)
 
+    if appendName:
+        fig.savefig("{}_{}_{}_magnitude.png".format(savename, step, dilation))
+        fig2.savefig("{}_{}_{}_phase.png".format(savename, step, dilation))
+    else:
+        fig.savefig("{}_magnitude.png".format(savename))
+        fig2.savefig("{}_phase.png".format(savename))
 
-    fig.savefig("{}_magnitude.png".format(savename))
-    fig2.savefig("{}_phase.png".format(savename))
     fig.clf()
     fig.clf()
 
     
-def CreatePolePlots(system, name):
+def CreatePolePlots(system, name, appendName):
     fx = matplotlib.pyplot.figure(dpi=120, figsize=(18/2,18/2))
     ax = fx.gca()
     ax.set_ylim(-2, 2)
@@ -768,12 +776,16 @@ def CreatePolePlots(system, name):
     ax.add_patch(matplotlib.pyplot.Circle((0,0), 1, fill=False))
     #matplotlib.pyplot.legend()
     ax.set_title("Poles")
-    fx.savefig("{}_poles.png".format(name))
+    if appendName:
+        fx.savefig("{}_{}_{}_poles.png".format(name, step, dilation))
+    else:
+        fx.savefig("{}_poles.png".format(name))
+    
     fx.clf()
 
-def CreateBodeAndPolePlots(system, name):
-    CreateBodePlots(system, name)
-    CreatePolePlots(system, name)
+def CreateBodeAndPolePlots(system, name, appendName=False):
+    CreateBodePlots(system, name, appendName)
+    CreatePolePlots(system, name, appendName)
 
 
 

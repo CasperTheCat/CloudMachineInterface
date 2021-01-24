@@ -31,7 +31,7 @@ def CreateAndSaveGraphTri(a, name, labels, limit_min = None, limit_max = None):
         ax3.set_facecolor(targetColour)
         fig.set_facecolor(targetColour)
 
-        ax3.set_xlabel("Samples ({}s)".format(Utils.step), color='white')
+        ax3.set_xlabel("Samples ({}s)".format(Utils.GetTimeStep()), color='white')
 
         ax1.spines['bottom'].set_color('white')
         ax1.spines['top'].set_color('white') 
@@ -122,7 +122,7 @@ def CreateAndSaveGraphSingl(a, name, label, lmin, lmax):
         ax1.set_facecolor(targetColour)
         fig.set_facecolor(targetColour)
 
-        ax1.set_xlabel("Samples", color='white')
+        ax1.set_xlabel("Samples ({}s)".format(Utils.GetTimeStep()), color='white')
 
         if not label:
             ax1.set_ylabel("Temperature Error (°C)", color='white')
@@ -161,7 +161,7 @@ def CreateAndSaveGraphSingl(a, name, label, lmin, lmax):
         pass
 
 
-def Compute1DMeanStd(x, windowSize = 10):
+def Compute1DMeanStd(x, windowSize = 50):
     pS = pandas.Series(x)
     means = numpy.array(pS.rolling(window=windowSize).mean())
     stds = numpy.array(pS.rolling(window=windowSize).std())
@@ -181,8 +181,8 @@ def Compute1DMeanStd(x, windowSize = 10):
 def ComputeMinMax(x, y=None):
     try:
         if y is not None:
-            lmax = numpy.nanmax(x + y)
-            lmin = numpy.nanmin(x - y)
+            lmax = numpy.nanmax(x + 2 * y)
+            lmin = numpy.nanmin(x - 2 * y)
         else:
             lmax = numpy.nanmax(x)
             lmin = numpy.nanmin(x)
@@ -276,7 +276,7 @@ comboBox = [
     "DMDc_FilterData.dat",
     "BaseCase_FilterData.dat",
     "Sindy_FilterTrain.dat",
-    #"DMDc_FilterTrain.dat",
+    "DMDc_FilterTrain.dat",
     "BaseCase_FilterTrain.dat",
     "Recurrent_FilterTrain.dat",
     "Recurrent_FilterData.dat",
@@ -335,8 +335,8 @@ for runType in comboBox:
     Handler_RunError(numpy.abs(RunError), runType, "AbsError")#, lmin=-100, lmax=100)
     Handler_RunError(numpy.abs(RunError).cumsum(axis=0), runType, "CumulativeAbsError")
 
-    Handler_SingleValue(RunInclusiveTime, runType, "RunInc", "Inclusive Time (ms)", localMin=0)
-    Handler_SingleValue(RunEvaluationTime, runType, "Eval", "Evaluation Time (ms)", localMin=0)
+    Handler_SingleValue(RunInclusiveTime, runType, "RunInc", "Inclusive Time (ms)", localMin=0, useMeanStdRange=True)
+    Handler_SingleValue(RunEvaluationTime, runType, "Eval", "Evaluation Time (ms)", localMin=0, useMeanStdRange=True)
     Handler_SingleValue(RunRetrainTime, runType, "RTCost", "Retrain Cost (ms)", useMeanStdRange=True)
 
     Handler_SingleValue(RunInclusiveTime.cumsum(), runType, "CumulativeRunInc", "Cumulative Inclusive Time (ms)", localMin=0)
