@@ -116,7 +116,7 @@ cacheA = asb.modes.dot(numpy.diag(eigs)).dot(numpy.linalg.pinv(asb.modes))
 cacheB = asb.B
 
 system = control.ss(cacheA, cacheB, numpy.identity(cacheA.shape[0]), numpy.zeros(cacheB.shape), Utils.GetTimeStep())
-Utils.CreateBodeAndPolePlots(system, "DMDc")
+Utils.CreateBodeAndPolePlots(system, "DMDc", True)
 
 print(cacheA.shape)
 

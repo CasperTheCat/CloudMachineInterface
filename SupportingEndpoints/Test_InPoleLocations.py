@@ -522,12 +522,16 @@ def DMDc_RetrainFunction(history):
     costToRT.append(timePassed)
 
 
+tth = 0
 def DMDc_DetectorFunction(history, feedback, timeBase):
     global dmdModel
     global rtTimes
+    global tth
 
-    if(rtTimes == 0):
+    if(rtTimes == tth):
         return False
+
+    tth += 1
 
     # yShift = fftshift(history[-1]) # shift of the step function
     # Fourier = scipy.fft(yShift) # Fourier transform of y implementing the FFT
@@ -583,11 +587,11 @@ def DMDc_DetectorFunction(history, feedback, timeBase):
         #matplotlib.pyplot.plot(f_fft / 1e3, np.angle(sig_fft), 'k',    label='FFT')
         a0.plot(freq,  numpy.angle(sig_f),   'ro--', label='CZT')
         a0.set_xlabel("Frequency (Hz)")
-        a0.set_ylabel("Signal phase")
+        a0.set_ylabel("Signal phase. (Degrees)")
         ##matplotlib.pyplot.xlim([f_fft.min()/1e3, f_fft.max()/1e3])
         #matplotlib.pyplot.legend()
         a0.set_title(Utils.outnames[signalIter])
-        f0.savefig("{}_WWPhase.png".format(signalIter))
+        f0.savefig("WW_step.{}_dilation.{}_esr.{}_ssr.{}_{}_Phase.png".format(Utils.step, Utils.dilation, 2 * Utils.GetDetectableFrequency(), Utils.GetSimulatorFrequency(), signalIter))
         f0.clf()
 
         f1 = matplotlib.pyplot.figure(9, dpi=120, figsize=(36,18))
@@ -599,8 +603,11 @@ def DMDc_DetectorFunction(history, feedback, timeBase):
         a1.set_title(Utils.outnames[signalIter])
         ##matplotlib.pyplot.xlim([f_fft.min()/1e3, f_fft.max()/1e3])
         #matplotlib.pyplot.legend()
-        f1.savefig("{}_WWMag.png".format(signalIter))
+        f1.savefig("WW_step.{}_dilation.{}_esr.{}_ssr.{}_{}_Mag.png".format(Utils.step, Utils.dilation, 2 * Utils.GetDetectableFrequency(), Utils.GetSimulatorFrequency(), signalIter))
         f1.clf()
+
+        # Check this 
+        #print("Simulator Stat: Sampling every {}s ({} Hz) at {} Hz".format(Utils.GetTimeStep(), 2 * Utils.GetDetectableFrequency(), Utils.GetSimulatorFrequency()))
 
         # Decompile to real and imag compo
         # zU = e^(z * dt)
@@ -634,7 +641,7 @@ def DMDc_DetectorFunction(history, feedback, timeBase):
             #matplotlib.pyplot.legend()
             ax.set_title(Utils.outnames[signalIter])
 
-        fx.savefig("{}_WW.png".format(signalIter))
+        fx.savefig("WW_step.{}_dilation.{}_esr.{}_ssr.{}_{}_Pole.png".format(Utils.step, Utils.dilation, 2 * Utils.GetDetectableFrequency(), Utils.GetSimulatorFrequency(), signalIter))
         fx.clf()
 
     print("Wait")        
@@ -795,8 +802,8 @@ def ZeroAllVars():
 
 
 def ModulateSP_LF(base, i):
-    if i > 100:
-        tgFreqHz = 2.2
+    if i > 0:
+        tgFreqHz = 1.1
 
         # Each sample adds 1 radians per ST
         # A Hz is 2Pi rads
@@ -840,6 +847,8 @@ comboBox = [
     # (ML_EvalFunction, ML_RetrainFunction, ML_DetectorFunction, FilterFrequenciesByPower, None, "Recurrent_FilterData.dat"),
    
 ]
+
+print("Simulator Stat: Sampling every {}s ({} Hz) at {} Hz".format(Utils.GetTimeStep(), 2 * Utils.GetDetectableFrequency(), Utils.GetSimulatorFrequency()))
 
 for evf, rtf, dtf, flt, rtfflt, modu, name in comboBox:
     ZeroAllVars()
