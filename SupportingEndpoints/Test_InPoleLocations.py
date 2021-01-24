@@ -20,8 +20,8 @@ from ProcessSimulation import AActor, ABoiler, ABoilerController
 import time
 import matplotlib
 import matplotlib.pyplot
-# matplotlib.interactive(True)
-# matplotlib.use("TkAgg") 
+matplotlib.interactive(True)
+matplotlib.use("TkAgg") 
 import numpy
 import math
 import sys
@@ -31,6 +31,27 @@ import czt
 from past.utils import old_div
 import inspect
 import gc
+
+
+
+def ScrubAboveFreq(x, FreqCutoff=0.03, timeBase=0):
+    tx = x.copy().transpose()
+    
+    for signalIter in range(tx.shape[0]):
+        freq, sig_f = czt.time2freq(numpy.arange(timeBase, timeBase + x.shape[0]) * Utils.GetTimeStep(), tx[signalIter])
+
+        # remove 
+        cutFreqs = abs(freq) <= FreqCutoff
+        sig_f = sig_f * cutFreqs
+
+        #print(czt.freq2time(freq, sig_f, numpy.arange(timeBase, timeBase + x.shape[0]) * Utils.GetTimeStep()))
+
+        _, tx[signalIter] = czt.freq2time(freq, sig_f, numpy.arange(timeBase, timeBase + x.shape[0]) * Utils.GetTimeStep())
+        
+
+    return tx.transpose()
+
+
 
 def FilterFrequenciesByPower(x, PowerCutoff=0.005, timeBase=0):
     #for signalIter in range(x.shape[0]):
@@ -430,6 +451,7 @@ def DMDc_EvalFunction(history, feedback, i):
     global cacheA
     global cacheB
 
+
     # Check the caches are intact
     if cacheA is None or cacheB is None:
         eigs = numpy.power(dmdModel.eigs, old_div(dmdModel.dmd_time['dt'], dmdModel.original_time['dt']))
@@ -439,6 +461,22 @@ def DMDc_EvalFunction(history, feedback, i):
     ht = history.transpose()
     l1 = ht[:4]#.transpose()
     l2 = ht[4:]#.transpose()
+
+    # tx = l1#.copy()
+    
+    # for signalIter in range(tx.shape[0]):
+    #     freq, sig_f = czt.time2freq(numpy.arange(i, i + l2.shape[1]) * Utils.GetTimeStep(), tx[signalIter])
+
+    #     # remove 
+    #     cutFreqs = abs(freq) <= 0.025
+    #     sig_f = sig_f * cutFreqs
+
+    #     #print(czt.freq2time(freq, sig_f, numpy.arange(timeBase, timeBase + x.shape[0]) * Utils.GetTimeStep()))
+
+    #     _, tx[signalIter] = czt.freq2time(freq, sig_f, numpy.arange(i, i + l2.shape[1]) * Utils.GetTimeStep())
+        
+
+    # l1 = tx#l2.transpose()
 
     nl1 = l1.transpose()[:dmdModel.dynamics.shape[1] - 1].transpose()
 
@@ -725,7 +763,7 @@ def ThresholdFunction(signedError, absoluteError):
     global stepsSinceLastTrain
     global tholdRTTimes
 
-    shouldRetrainOnFixed = stepsSinceLastTrain * Utils.GetTimeStep() >= 500
+    shouldRetrainOnFixed = stepsSinceLastTrain * Utils.GetTimeStep() >= 1000
     shouldRetrainOnError = numpy.sum(absoluteError) > 1000
 
     stepsSinceLastTrain += 1
@@ -757,8 +795,8 @@ def ZeroAllVars():
 
 
 def ModulateSP_LF(base, i):
-    if i > 250:
-        tgFreqHz = 1.1
+    if i > 100:
+        tgFreqHz = 2.2
 
         # Each sample adds 1 radians per ST
         # A Hz is 2Pi rads
@@ -768,9 +806,9 @@ def ModulateSP_LF(base, i):
 
         freqMul = tgFreqHz / hertz
 
-        #print(freqMul, hertz)
+        print(freqMul, hertz)
 
-        return base + 100 * math.sin(i * freqMul)
+        return base + 50 * math.sin(i * freqMul)
     else:
         return base
 
@@ -807,8 +845,8 @@ for evf, rtf, dtf, flt, rtfflt, modu, name in comboBox:
     ZeroAllVars()
 
     graphing = Graphing.AGraphHolder(seed, spTemp, spTarg, dlp)
-    _, results, timeResults = graphing.TestRetraining(evf, rtf, ThresholdFunction, 16384, detectorFunction=dtf, filterFunction=flt, retrainFilter=rtfflt, modulator=modu)
-    #graphing.TestRetrainLive(maxY, solvedSize, TargetDPI, iTime, color, evf, rtf, ThresholdFunction, 300, ["Temperature (C)", "Heater Power (kW)", "Water Level (L)", "Target Temperature (C)", "Cosine Sim.", "Error"], filterFunction=flt, retrainFilter=rtfflt)
+    #_, results, timeResults = graphing.TestRetraining(evf, rtf, ThresholdFunction, 16384, detectorFunction=dtf, filterFunction=flt, retrainFilter=rtfflt, modulator=modu)
+    graphing.TestRetrainLive(maxY, solvedSize, TargetDPI, iTime, color, evf, rtf, ThresholdFunction, 300, ["Temperature (C)", "Heater Power (kW)", "Water Level (L)", "Target Temperature (C)", "Cosine Sim.", "Error"], filterFunction=flt, retrainFilter=rtfflt, modulator=modu, detectorFunction=dtf)
 
 
 

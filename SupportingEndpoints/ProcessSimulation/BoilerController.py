@@ -27,7 +27,7 @@ class ABoilerController(AController):
         self.boilerDegraderSeconds = 80000 + max(0, self.rng.gauss(1, 0.5)) * 40000
         self.boilerStickyStart = 40000 + max(0, self.rng.gauss(1, 0.5)) * 25000
         self.boilerStickyEnd = self.boilerStickyStart + max(0, self.rng.gauss(1, 0.5)) * 30000
-        self.boilerStickyAmount = 300 + max(0, self.rng.gauss(1, 0.5)) * 1200
+        self.boilerStickyAmount = 0 + max(0, self.rng.gauss(1, 0.5)) * 1200
         
         self.boilerPOutScale = 0.5 + max(0, self.rng.gauss(1, 0.5))
         self.boilerPInScale = 0.5 + max(0, self.rng.gauss(1, 0.5))

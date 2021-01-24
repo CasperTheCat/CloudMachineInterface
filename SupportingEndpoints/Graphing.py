@@ -25,7 +25,7 @@ def normalize(v):
 
 class AGraphHolder():
     def __init__(self, seed, spTemp, spTarg, dlp):
-        self.simulator = CSimulator(1, 600000)
+        self.simulator = CSimulator(Utils.dilation, 600000)
         self.boiler = self.simulator.SpawnObject(ABoiler, 20000, 30, 80, 30)
         self.boilerController = self.simulator.SpawnObject(ABoilerController, 5, 75, spTemp, seed)
         self.boilerController.Possess(self.boiler)
@@ -291,7 +291,7 @@ class AGraphHolder():
                     predDataX = numpy.concatenate( [dataX[:-backOffset], localHistory.transpose()[2]] )
                     predDataS = numpy.concatenate( [dataS[:-backOffset], localHistory.transpose()[5]] )
                     offsetVal = 0 if len(dataClose) == 0 else dataClose[-1]
-                    print(offsetVal)
+                    
                     predClose = numpy.concatenate( [dataClose[:-backOffset], (numpy.cumsum(stepErrorOracle)) * 0.01 + offsetVal] )
                     # print("\n\n")
                     # print(history[-1])
@@ -357,7 +357,7 @@ class AGraphHolder():
                     # warndiff.set_xdata(numpy.arange(0, len(dataP)) * self.simulator.timeDilation * step)
                     # warndiff.set_ydata(dataDiff)
 
-
+                    print((numpy.arange(0, len(dataP)) * self.simulator.timeDilation * step)[-1])
 
                     ax.set_xlim(left=-5, right=len(predDataP) * self.simulator.timeDilation * step +5)
                     #ax2.fill_between(x, len(dataP) * self.simulator.timeDilation * step +5, len(predDataP) * self.simulator.timeDilation * step +5, facecolor='green', alpha=0.5)

@@ -19,7 +19,7 @@ import tensorflow as tf
 from tensorflow import keras
 from tensorflow.keras import layers
 
-dilation = 0.1#(1/4) * (1/5)
+dilation = 1#(1/4) * (1/5)
 seqLength = 300#5 * 12
 step = 5
 offset = 230
@@ -774,9 +774,7 @@ def CreatePolePlots(system, name):
 def CreateBodeAndPolePlots(system, name):
     CreateBodePlots(system, name)
     CreatePolePlots(system, name)
-
-
-
+    print(system.pole())
 
 
 
