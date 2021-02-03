@@ -1,4 +1,4 @@
-python SupportingEndpoints/MachineLearningForGraphing.py
+#python SupportingEndpoints/MachineLearningForGraphing.py
 python SupportingEndpoints/GenerateModelForGraphing.py
 python SupportingEndpoints/GenerateDMDModel.py
 python SupportingEndpoints/GenerateSindyModel.py

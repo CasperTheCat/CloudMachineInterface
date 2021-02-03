@@ -11,10 +11,27 @@ import Utils
 # matplotlib.interactive(True)
 # matplotlib.use("TkAgg") 
 
-def CreateAndSaveGraphTri(a, name, labels, limit_min = None, limit_max = None):
+def ShouldHighlight(x, y, z):
+    indices = x[y] == z
+    for i in range(1 , 4):
+        working = numpy.roll(x[y] , -i)
+
+        indices = numpy.logical_or(indices, working == z)
+
+    print(indices.any())
+
+    return indices
+
+def CreateAndSaveGraphTri(a, name, labels, limit_min = None, limit_max = None, rtReason = None):
+    inShape = a[0].shape[0]
+    deltaShape = rtReason.shape[0] - inShape
+    LineMaker = rtReason[deltaShape // 2:-(deltaShape // 2)].transpose()
+
+    print("LN {}".format(LineMaker.shape))
+
     try:
         maxY = 105
-        maxTDPI = 96 * 2
+        maxTDPI = 96
         resolution = numpy.array((1920, 1080))
         TargetDPI = maxTDPI
         solvedSize = resolution / TargetDPI
@@ -31,7 +48,7 @@ def CreateAndSaveGraphTri(a, name, labels, limit_min = None, limit_max = None):
         ax3.set_facecolor(targetColour)
         fig.set_facecolor(targetColour)
 
-        ax3.set_xlabel("Samples ({}s)".format(Utils.GetTimeStep()), color='white')
+        ax3.set_xlabel("Seconds", color='white')
 
         ax1.spines['bottom'].set_color('white')
         ax1.spines['top'].set_color('white') 
@@ -69,9 +86,24 @@ def CreateAndSaveGraphTri(a, name, labels, limit_min = None, limit_max = None):
             ax2.set_ylabel(labels[1])
             ax3.set_ylabel(labels[2])
 
-        ax1.legend()
-        ax2.legend()
-        ax3.legend()
+        dra1_1, = ax1.fill(numpy.NaN, numpy.NaN, color="yellow")
+        dra1_2, = ax1.fill(numpy.NaN, numpy.NaN, color="blue")
+        dra1_3, = ax1.fill(numpy.NaN, numpy.NaN, color="green")
+        dra1_4, = ax1.fill(numpy.NaN, numpy.NaN, color="magenta")
+
+        dra2_1, = ax2.fill(numpy.NaN, numpy.NaN, color="yellow")
+        dra2_2, = ax2.fill(numpy.NaN, numpy.NaN, color="blue")
+        dra2_3, = ax2.fill(numpy.NaN, numpy.NaN, color="green")
+        dra2_4, = ax2.fill(numpy.NaN, numpy.NaN, color="magenta")
+
+        dra3_1, = ax3.fill(numpy.NaN, numpy.NaN, color="yellow")
+        dra3_2, = ax3.fill(numpy.NaN, numpy.NaN, color="blue")
+        dra3_3, = ax3.fill(numpy.NaN, numpy.NaN, color="green")
+        dra3_4, = ax3.fill(numpy.NaN, numpy.NaN, color="magenta")
+
+        ax1.legend([dra1, dra1_1, dra1_2, dra1_3, dra1_4], ["Error", "Time-based", "Absolute-based", "Signed-based", "Step-based"])
+        ax2.legend([dra2, dra2_1, dra2_2, dra2_3, dra2_4], ["Error", "Time-based", "Absolute-based", "Signed-based", "Step-based"])
+        ax3.legend([dra3, dra3_1, dra3_2, dra3_3, dra3_4], ["Error", "Time-based", "Absolute-based", "Signed-based", "Step-based"])
 
         if limit_min is not None or limit_max is not None:
             lowBound = limit_min if limit_min is not None else -100
@@ -81,22 +113,35 @@ def CreateAndSaveGraphTri(a, name, labels, limit_min = None, limit_max = None):
             ax2.set_ylim(lowBound, highBound)
             ax3.set_ylim(lowBound, highBound)
 
-        _range = numpy.arange(a[1].shape[0])
+        _range = numpy.arange(a[1].shape[0]) * Utils.GetTimeStep()
 
         lookupInt = 0 # I'm lazy
-        dra1.set_xdata(numpy.arange(0, len(_range)))
+        dra1.set_xdata(_range)
         dra1.set_ydata(a[lookupInt])
-        ax1.fill_between(numpy.arange(0, len(_range)), a[lookupInt] + a[lookupInt+3] * 2, a[lookupInt] - a[lookupInt+3] * 2)
+        ax1.fill_between(_range, a[lookupInt] + a[lookupInt+3] * 2, a[lookupInt] - a[lookupInt+3] * 2)
+        ax1.fill_between(_range, 2**31, -2**31, where=ShouldHighlight(LineMaker, 1, 1), color="yellow")
+        ax1.fill_between(_range, 2**31, -2**31, where=ShouldHighlight(LineMaker, 2, 1), color="blue")
+        ax1.fill_between(_range, 2**31, -2**31, where=ShouldHighlight(LineMaker, 3, 1), color="green")
+        ax1.fill_between(_range, 2**31, -2**31, where=ShouldHighlight(LineMaker, 4, 1), color="magenta")
 
         lookupInt = 1 # I'm lazy
-        dra2.set_xdata(numpy.arange(0, len(_range)))
+        dra2.set_xdata(_range)
         dra2.set_ydata(a[lookupInt])
-        ax2.fill_between(numpy.arange(0, len(_range)), a[lookupInt] + a[lookupInt+3] * 2, a[lookupInt] - a[lookupInt+3] * 2)
+        ax2.fill_between(_range, a[lookupInt] + a[lookupInt+3] * 2, a[lookupInt] - a[lookupInt+3] * 2)
+        ax2.fill_between(_range, 2**31, -2**31, where=ShouldHighlight(LineMaker, 1, 1), color="yellow")
+        ax2.fill_between(_range, 2**31, -2**31, where=ShouldHighlight(LineMaker, 2, 1), color="blue")
+        ax2.fill_between(_range, 2**31, -2**31, where=ShouldHighlight(LineMaker, 3, 1), color="green")
+        ax2.fill_between(_range, 2**31, -2**31, where=ShouldHighlight(LineMaker, 4, 1), color="magenta")
 
         lookupInt = 2 # I'm lazy
-        dra3.set_xdata(numpy.arange(0, len(_range)))
+        dra3.set_xdata(_range)
         dra3.set_ydata(a[lookupInt])
-        ax3.fill_between(numpy.arange(0, len(_range)), a[lookupInt] + a[lookupInt+3] * 2, a[lookupInt] - a[lookupInt+3] * 2)
+        ax3.fill_between(_range, a[lookupInt] + a[lookupInt+3] * 2, a[lookupInt] - a[lookupInt+3] * 2)
+        ax3.fill_between(_range, 2**31, -2**31, where=ShouldHighlight(LineMaker, 1, 1), color="yellow")
+        ax3.fill_between(_range, 2**31, -2**31, where=ShouldHighlight(LineMaker, 2, 1), color="blue")
+        ax3.fill_between(_range, 2**31, -2**31, where=ShouldHighlight(LineMaker, 3, 1), color="green")
+        ax3.fill_between(_range, 2**31, -2**31, where=ShouldHighlight(LineMaker, 4, 1), color="magenta")
+        
     except Exception as e:
         print(e)
         pass
@@ -199,7 +244,7 @@ def ComputeMinMax(x, y=None):
     except:
         return None, None
 
-def Handler_RunError(rE, runType, name, labels=None, localMin=None, localMax=None):
+def Handler_RunError(rE, runType, name, rtReason=None, labels=None, localMin=None, localMax=None):
     meanList = []
     stdsList = []
 
@@ -224,7 +269,7 @@ def Handler_RunError(rE, runType, name, labels=None, localMin=None, localMax=Non
 
     concat = numpy.concatenate([numpy.array(meanList), numpy.array(stdsList)])
 
-    CreateAndSaveGraphTri(concat, os.path.join("./Results/", "TriGraph_{}_{}.png".format(runType, name)), labels, lmin, lmax)
+    CreateAndSaveGraphTri(concat, os.path.join("./Results/", "TriGraph_{}_{}.png".format(runType, name)), labels, lmin, lmax, rtReason)
 
 def Handler_SingleValue(timeSeries, runType, name, label, localMin=None, localMax=None, useMeanStdRange=False):
     means, stds = Compute1DMeanStd(timeSeries)
@@ -267,8 +312,8 @@ def Handler_ConcatTimeSeries(timeSeries1, timeSeries2, timeSeries3):
     CreateAndSaveGraphTri(concat, os.path.join("./Results/", runType + "_ConcatGraph.png"), labels=None)
 
 comboBox = [
-    "Sindy.dat",
     "DMDc.dat",
+    "Sindy.dat",
     "OKIDERA.dat",
     "BaseCase.dat",
     "OKIDERA_FilterData.dat",
@@ -307,7 +352,10 @@ for runType in comboBox:
     with open("RetrainTime_" + runType, "rb+") as f:
         RunRetrainTime = pickle.load(f)
 
-    # print(type(RunError))
+    with open("RetrainReason_" + runType, "rb+") as f:
+        RtReason = pickle.load(f)
+
+    print(RunError[0])
     # print(type(RunInclusiveTime))
     # print(type(RunEvaluationTime))
     # print(type(RunRetrainTime))
@@ -327,13 +375,20 @@ for runType in comboBox:
     RunInclusiveTime = numpy.array(arrayOfIncl).astype(numpy.float) * 1000
     RunEvaluationTime = numpy.array(RunEvaluationTime).astype(numpy.float) * 1000
     RunRetrainTime = numpy.array(RunRetrainTime).astype(numpy.float) * 1000
+    RtReason = numpy.array(RtReason)
+
+    # RunError = RunError.transpose()
+    # RunError[-1] *= 100
+    # RunError = RunError.transpose()
 
     print(RunError.shape)
 
-    Handler_RunError(RunError, runType, "SignedError")#, lmin=-100, lmax=100)
-    Handler_RunError(RunError.cumsum(axis=0), runType, "CumulativeSignedError")
-    Handler_RunError(numpy.abs(RunError), runType, "AbsError")#, lmin=-100, lmax=100)
-    Handler_RunError(numpy.abs(RunError).cumsum(axis=0), runType, "CumulativeAbsError")
+    
+
+    Handler_RunError(RunError, runType, "CumulativeSignedError", RtReason)#, lmin=-100, lmax=100)
+    Handler_RunError(RunError.cumsum(axis=0), runType, "IntegralSignedError", RtReason)
+    Handler_RunError(numpy.abs(RunError), runType, "CumulativeAbsError", RtReason)#, lmin=-100, lmax=100)
+    Handler_RunError(numpy.abs(RunError).cumsum(axis=0), runType, "IntegralAbsError", RtReason)
 
     Handler_SingleValue(RunInclusiveTime, runType, "RunInc", "Inclusive Time (ms)", localMin=0, useMeanStdRange=True)
     Handler_SingleValue(RunEvaluationTime, runType, "Eval", "Evaluation Time (ms)", localMin=0, useMeanStdRange=True)
@@ -346,8 +401,7 @@ for runType in comboBox:
     # tt = numpy.array([RunInclusiveTime, RunEvaluationTime])
     # print(tt.shape)
 
-
-
+    RunError = numpy.abs(numpy.diff(RunError, axis=0))
     ctcsv = pandas.DataFrame(RunError)
     ctcsv.to_csv("./Results/RE_{}.csv".format(runType), index=False)
 

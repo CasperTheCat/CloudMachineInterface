@@ -396,12 +396,26 @@ class AGraphHolder():
             #input("Press Any Key")
             pass
 
-    def TestRetraining(self, predictionFunction, retrainCallback, thresholdFunction, loopLimit, backOffset = 1, futureOffset = 0, historyLength = 1000 + Utils.seqLength, detectorFunction=None, filterFunction=None, retrainFilter=None, modulator=None):
+    def TestRetraining(self, predictionFunction, retrainCallback, thresholdFunction, loopLimit, backOffset = 1, futureOffset = 0, historyLength = 1000 + Utils.seqLength, detectorFunction=None, filterFunction=None, retrainFilter=None, modulator=None, name=None, warnFunction=None):
         offsetResults = {}
         retrainError={}
         errorTracking = 0.0
         absErrorTracking = 0.0
         timeCost = {}
+
+        dataP = []
+        dataT = []
+        dataS = []
+        dataX = []
+        dataClose = []
+
+        resolution = numpy.array((1920, 1080))
+        TargetDPI = 96
+        solvedSize = resolution / TargetDPI
+
+        fig, ax, packedAxis1 = MakeLiveMap2(110, solvedSize, TargetDPI, 30, (0.05,0.05,0.05), labelOverrides=["Temperature (C)", "Heater Power (kW)", "Water Level (L)", "Target Temperature (C)", "Error"])
+
+        dra, two, three, four, warn = packedAxis1
 
         for i in range(backOffset):
             offsetResults[i] = []
@@ -464,6 +478,9 @@ class AGraphHolder():
 
             #print(i, cosineSimilarity, currentTimeError, vecCurrent[4:])
 
+            if (warnFunction)
+                warnFunction(self.history, localHistory, i)
+
             ## Detector
             if (detectorFunction):
                 detectorFunction(self.history, xhat, i)#[arrLength - (Utils.seqLength + backOffset):arrLength - backOffset], xhat, i)
@@ -472,10 +489,10 @@ class AGraphHolder():
             errorTracking += stepError
             absErrorTracking += abs(stepError)
 
-            retrainError[i] = [numpy.sum(errorTracking), numpy.sum(absErrorTracking), numpy.sum(stepError)]
+            retrainError[i] = stepError[4:]# [numpy.sum(errorTracking), numpy.sum(absErrorTracking), numpy.sum(stepError)]
 
             # Do we need to retrain?
-            if thresholdFunction(errorTracking, absErrorTracking):
+            if thresholdFunction(errorTracking, absErrorTracking, stepError):
                 print("\tError {} at {}. Retrain.".format(absErrorTracking, i))
                 if(retrainFilter):
                     retrainCallback(retrainFilter(self.history))
@@ -510,6 +527,12 @@ class AGraphHolder():
             holdover = self.lastUpdateTimesRt[removalCutter]
             self.lastUpdateTimesRt = self.lastUpdateTimesRt[removalCutter:] - holdover
 
+            dataP = numpy.concatenate([dataP, [self.boiler.GetBoilerWaterTemp()]])
+            dataT = numpy.concatenate([dataT, [self.boiler.boilerPercent * self.boiler.boilerPerformance * 0.001]])
+            dataX = numpy.concatenate([dataX, [self.boilerController.temperatureSetPoint]])
+            dataS = numpy.concatenate([dataS, [self.boiler.waterVolCurrent]])
+            dataClose = numpy.concatenate([dataClose, [numpy.sum(absErrorTracking) * 0.01]])
+
 
 
             if i % 10 == 0:
@@ -534,6 +557,23 @@ class AGraphHolder():
             self.totalRuntime += self.lastFrameTime
             timeCost[i] = self.lastFrameTime / backOffset
     
+
+        dra.set_xdata(numpy.arange(0, len(dataP)) * Utils.GetTimeStep())
+        dra.set_ydata(dataP)
+        two.set_xdata(numpy.arange(0, len(dataP)) * Utils.GetTimeStep())
+        two.set_ydata(dataT)
+        three.set_xdata(numpy.arange(0, len(dataP)) * Utils.GetTimeStep())
+        three.set_ydata(dataS)
+        four.set_xdata(numpy.arange(0, len(dataP)) * Utils.GetTimeStep())
+        four.set_ydata(dataX)
+        warn.set_xdata(numpy.arange(0, len(dataP)) * Utils.GetTimeStep())
+        warn.set_ydata(dataClose)
+
+        ax.set_xlim(left=-5, right=len(dataP) * Utils.GetTimeStep() +5)
+
+        if name is not None:
+            fig.savefig("RAW_" + name + ".png", facecolor=fig.get_facecolor())
+
         return offsetResults, retrainError, timeCost
 
     def TestOffsetWidth(self, predictionFunction, loopLimit, backOffset = 150, futureOffset = 0, historyLength = 450 + Utils.seqLength):
@@ -1023,3 +1063,55 @@ def MakeLiveMap(maxY, solvedSize, TargetDPI, iTime, targetColour, labelOverrides
     ax2.tick_params(axis='y', colors='white')
 
     return fig, ax, ax2, (dra, two, three, four, warn, warnfar, warndiff), (dra2, two2, three2, four2, warn2)
+
+
+def MakeLiveMap2(maxY, solvedSize, TargetDPI, iTime, targetColour, labelOverrides = None, label2Overrides = None):
+    fig = matplotlib.pyplot.figure(dpi=TargetDPI, figsize=solvedSize)#, ax = matplotlib.pyplot.subplots(1,1,sharex=True, dpi=TargetDPI, figsize=solvedSize)
+    ax = fig.gca()
+    #ax = matplotlib.pyplot.axes()
+    #ax2 = ax.twin()
+    dra, = ax.plot([],[], color="red")    
+    two, = ax.plot([],[])
+    three, = ax.plot([],[], color="green")
+    four, = ax.plot([],[], linestyle="--")#, color="magenta")
+    warn, = ax.plot([],[], linestyle="dotted")#, color="purple")
+
+
+
+    ax.yaxis.grid(True, color='white')
+
+
+    if labelOverrides:
+        if len(labelOverrides) > 0:
+            dra.set_label(labelOverrides[0])
+        if len(labelOverrides) > 1:
+            two.set_label(labelOverrides[1])
+        if len(labelOverrides) > 2:
+            three.set_label(labelOverrides[2])
+        if len(labelOverrides) > 3:
+            four.set_label(labelOverrides[3])
+        if len(labelOverrides) > 4:
+            warn.set_label(labelOverrides[4])
+
+    # Add legends
+    ax.legend()
+
+
+    ax.set_facecolor(targetColour)
+    fig.set_facecolor(targetColour)
+
+    ax.set_xlabel("Window Time (Seconds)", color='white')
+    ax.set_ylabel("Raw Values", color='white')
+
+    ax.set_ylim(top=maxY, bottom=-5)
+    #ax.set_ylim(top=maxY, bottom=-100)
+    #ax.set_xlim(left=-5, right=iTime+5)
+    ax.tick_params(axis='x', colors='white')
+    ax.tick_params(axis='y', colors='white')
+
+    ax.spines['bottom'].set_color('white')
+    ax.spines['top'].set_color('white') 
+    ax.spines['right'].set_color('white')
+    ax.spines['left'].set_color('white')
+
+    return fig, ax, (dra, two, three, four, warn)

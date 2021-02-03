@@ -19,9 +19,9 @@ import tensorflow as tf
 from tensorflow import keras
 from tensorflow.keras import layers
 
-dilation = 5
+dilation = 1
 seqLength = 300#5 * 12
-step = 10
+step = 5
 offset = 230
 Weights = [1, 1, 1, 1, 1, 1, 0.01, 0.100]
 ErrorWeights = [0, 0, 0, 0, 1.1, 1, 0.01]#, 0.01]

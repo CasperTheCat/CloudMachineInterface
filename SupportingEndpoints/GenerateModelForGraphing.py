@@ -221,7 +221,7 @@ asb, score = CreateOKIDERA(l1, l2 ,bestIndex, step, dilation)
 with open("Pickle.era", "wb+") as f:
     pickle.dump(asb, f)
 
-Utils.CreateBodePlots(asb, "OKIDERA")
+Utils.CreateBodeAndPolePlots(asb, "OKIDERA", True)
     
 
 # A,B,C,D = control.ssdata(asb)

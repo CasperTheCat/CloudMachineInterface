@@ -119,7 +119,7 @@ color = (0.05,0.05,0.05)
 
 
 
-simulator = CSimulator(1, 600000)
+simulator = CSimulator(Utils.dilation, 600000)
 #simulator = CSimulator(1, 200000)
 
 spTemp = 55
@@ -163,9 +163,11 @@ predmodel = keras.models.load_model("model.tensorflow")
 
 cost = []
 costToRT = []
+rtReason = []
 stepsSinceLastTrain = 0
 rtTimes = 0
 tholdRTTimes = 0
+
 
 # For DMD
 cacheA = None
@@ -196,7 +198,23 @@ def EvalFunction(history, feedback, timeBase):
 
     asU = history.transpose()[:4]
 
+    ht = history.transpose()
+    l1 = ht[:4]#.transpose()
+    l2 = ht[4:]#.transpose()
+
+    U = l1.transpose()[-1]
+    X = l2.transpose()[-1]
+
+    A,B,C,D = control.ssdata(model)
+
     evalBeginTime = time.perf_counter()
+
+    out = A.dot(X) + B.dot(U)
+
+    evalEndTime = time.perf_counter()
+    cost.append(evalEndTime - evalBeginTime)
+
+    return out, []
 
     _, yo, xo = control.forced_response(
         model,
@@ -233,7 +251,7 @@ def RetrainFunction(history):
     l2 = ht[4:]#.transpose()
     newModel = None
     try:
-        newModel, score = Utils.GetBestOKID(l1, l2)
+        newModel, score = Utils.GetBestOKID(l1, l2, 1, 10)
         model = newModel
     except:
         # Don't update the model!
@@ -697,21 +715,26 @@ def Sindy_DetectorFunction(history, feedback, timeBase):
     return False
 
 
-def ThresholdFunction(signedError, absoluteError):
+def ThresholdFunction(signedError, absoluteError, singleStep):
     global stepsSinceLastTrain
     global tholdRTTimes
+    global rtReason
 
-    shouldRetrainOnFixed = stepsSinceLastTrain * Utils.dilation >= 500
-    shouldRetrainOnError = numpy.sum(absoluteError) > 1000
-
-    stepsSinceLastTrain += 1
+    shouldRetrainOnFixed = stepsSinceLastTrain * Utils.GetTimeStep() >= 3600 * 6
+    shouldRetrainOnAbsError = numpy.sum(absoluteError) > 200
+    shouldRetrainOnSignError = False#numpy.abs(numpy.sum(signedError)) > 100
+    shouldRetrainOnStepError = False#numpy.sum(numpy.abs(singleStep)) > 2
 
     # Fixed step. Can be rolled into the return bool
     # But it's here to be readable
     if (shouldRetrainOnFixed):
         tholdRTTimes += 1
+    
+    rtReason.append((stepsSinceLastTrain, shouldRetrainOnFixed, shouldRetrainOnAbsError, shouldRetrainOnSignError, shouldRetrainOnStepError))
 
-    if (shouldRetrainOnError or shouldRetrainOnFixed):
+    stepsSinceLastTrain += 1
+
+    if (shouldRetrainOnAbsError or shouldRetrainOnFixed or shouldRetrainOnSignError or shouldRetrainOnStepError):
         stepsSinceLastTrain = 0
         return True
 
@@ -724,7 +747,9 @@ def ZeroAllVars():
     global stepsSinceLastTrain
     global rtTimes
     global tholdRTTimes
+    global rtReason
 
+    rtReason = []
     cost = []
     costToRT = []
     stepsSinceLastTrain = 0
@@ -732,29 +757,29 @@ def ZeroAllVars():
     tholdRTTimes = 0
 
 comboBox = [
-    (Sindy_EvalFunction, Sindy_RetrainFunction, Sindy_DetectorFunction, None, None, "Sindy.dat"),
     (DMDc_EvalFunction, DMDc_RetrainFunction, DMDc_DetectorFunction, None, None, "DMDc.dat"),
+    (Sindy_EvalFunction, Sindy_RetrainFunction, Sindy_DetectorFunction, None, None, "Sindy.dat"),
     (EvalFunction, RetrainFunction, DetectorFunction, None, None, "OKIDERA.dat"),
     #(MrDMD_EvalFunction, MrDMD_RetrainFunction, MrDMD_DetectorFunction, "MrDMD.dat"),
     (BaseEvalFunction, BaseRetrainFunction, BaseDetectorFunction, None, None, "BaseCase.dat"),
 
 
-    (EvalFunction, RetrainFunction, DetectorFunction, FilterFrequenciesByPower, None, "OKIDERA_FilterData.dat"),
-    (Sindy_EvalFunction, Sindy_RetrainFunction, Sindy_DetectorFunction, FilterFrequenciesByPower, None, "Sindy_FilterData.dat"),
-    #(MrDMD_EvalFunction, MrDMD_RetrainFunction, MrDMD_DetectorFunction, "MrDMD.dat"),
-    (DMDc_EvalFunction, DMDc_RetrainFunction, DMDc_DetectorFunction, FilterFrequenciesByPower, None, "DMDc_FilterData.dat"),
-    (BaseEvalFunction, BaseRetrainFunction, BaseDetectorFunction, FilterFrequenciesByPower, None, "BaseCase_FilterData.dat"),
+#    (EvalFunction, RetrainFunction, DetectorFunction, FilterFrequenciesByPower, None, "OKIDERA_FilterData.dat"),
+#    (Sindy_EvalFunction, Sindy_RetrainFunction, Sindy_DetectorFunction, FilterFrequenciesByPower, None, "Sindy_FilterData.dat"),
+#    #(MrDMD_EvalFunction, MrDMD_RetrainFunction, MrDMD_DetectorFunction, "MrDMD.dat"),
+#    (DMDc_EvalFunction, DMDc_RetrainFunction, DMDc_DetectorFunction, FilterFrequenciesByPower, None, "DMDc_FilterData.dat"),
+#    (BaseEvalFunction, BaseRetrainFunction, BaseDetectorFunction, FilterFrequenciesByPower, None, "BaseCase_FilterData.dat"),
     
 
-    (EvalFunction, RetrainFunction, DetectorFunction, None, FilterFrequenciesByPower, "OKIDERA_FilterTrain.dat"), ## EXCLUDED DUE TO CRASH
-    (Sindy_EvalFunction, Sindy_RetrainFunction, Sindy_DetectorFunction, None, FilterFrequenciesByPower, "Sindy_FilterTrain.dat"),
-    #(MrDMD_EvalFunction, MrDMD_RetrainFunction, MrDMD_DetectorFunction, "MrDMD.dat"),
-    (DMDc_EvalFunction, DMDc_RetrainFunction, DMDc_DetectorFunction, None, FilterFrequenciesByPower, "DMDc_FilterTrain.dat"),
-    (BaseEvalFunction, BaseRetrainFunction, BaseDetectorFunction, None, FilterFrequenciesByPower, "BaseCase_FilterTrain.dat"),
+#    (EvalFunction, RetrainFunction, DetectorFunction, None, FilterFrequenciesByPower, "OKIDERA_FilterTrain.dat"), ## EXCLUDED DUE TO CRASH
+#    (Sindy_EvalFunction, Sindy_RetrainFunction, Sindy_DetectorFunction, None, FilterFrequenciesByPower, "Sindy_FilterTrain.dat"),
+#    #(MrDMD_EvalFunction, MrDMD_RetrainFunction, MrDMD_DetectorFunction, "MrDMD.dat"),
+#    (DMDc_EvalFunction, DMDc_RetrainFunction, DMDc_DetectorFunction, None, FilterFrequenciesByPower, "DMDc_FilterTrain.dat"),
+#    (BaseEvalFunction, BaseRetrainFunction, BaseDetectorFunction, None, FilterFrequenciesByPower, "BaseCase_FilterTrain.dat"),
 
-    (ML_EvalFunction, ML_RetrainFunction, ML_DetectorFunction, None, None, "Recurrent.dat"),
-    (ML_EvalFunction, ML_RetrainFunction, ML_DetectorFunction, None, FilterFrequenciesByPower, "Recurrent_FilterTrain.dat"),
-    (ML_EvalFunction, ML_RetrainFunction, ML_DetectorFunction, FilterFrequenciesByPower, None, "Recurrent_FilterData.dat"),
+#    (ML_EvalFunction, ML_RetrainFunction, ML_DetectorFunction, None, None, "Recurrent.dat"),
+#    (ML_EvalFunction, ML_RetrainFunction, ML_DetectorFunction, None, FilterFrequenciesByPower, "Recurrent_FilterTrain.dat"),
+#    (ML_EvalFunction, ML_RetrainFunction, ML_DetectorFunction, FilterFrequenciesByPower, None, "Recurrent_FilterData.dat"),
    
 ]
 
@@ -766,7 +791,7 @@ for evf, rtf, dtf, flt, rtfflt, name in comboBox:
         continue
 
     graphing = Graphing.AGraphHolder(seed, spTemp, spTarg, dlp)
-    _, results, timeResults = graphing.TestRetraining(evf, rtf, ThresholdFunction, 16384, detectorFunction=dtf, filterFunction=flt, retrainFilter=rtfflt)
+    _, results, timeResults = graphing.TestRetraining(evf, rtf, ThresholdFunction, 16384*8, detectorFunction=dtf, filterFunction=flt, retrainFilter=rtfflt, name=name)
     #graphing.TestRetrainLive(maxY, solvedSize, TargetDPI, iTime, color, evf, rtf, ThresholdFunction, 300, ["Temperature (C)", "Heater Power (kW)", "Water Level (L)", "Target Temperature (C)", "Cosine Sim.", "Error"], filterFunction=flt, retrainFilter=rtfflt)
 
     with open("Error_" + name, "wb+") as f:
@@ -781,6 +806,8 @@ for evf, rtf, dtf, flt, rtfflt, name in comboBox:
     with open("RetrainTime_" + name, "wb+") as f:
         pickle.dump(costToRT, f)
 
+    with open("RetrainReason_" + name, "wb+") as f:
+        pickle.dump(rtReason, f)
 
     print("{} -- Infer Cost: {}. RT Cost {} ({}s)".format(name, numpy.sum(cost), numpy.sum(costToRT), numpy.mean(costToRT)))
     print("{} -- Retrains {}. (Fixed RTs {})".format(name, rtTimes, tholdRTTimes))
@@ -791,7 +818,7 @@ for evf, rtf, dtf, flt, rtfflt, name in comboBox:
 
 
 print("Wait")
-input()
+# input()
 exit()
 # cost = 0
 # costml = 0

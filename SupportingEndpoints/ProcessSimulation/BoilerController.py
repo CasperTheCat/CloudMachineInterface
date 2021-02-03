@@ -42,6 +42,8 @@ class ABoilerController(AController):
         self.inWaterFlux = 5 + max(0, self.rng.gauss(1, 0.5)) * 10
         self.inWaterTemp = max(0, self.rng.gauss(1, 0.5)) * self.inWaterFlux
 
+        self.boilerGoneSeconds = 80000 + max(0, self.rng.gauss(1, 0.5)) * 40000
+
         print("self.boilerDegraderSeconds is {}".format(self.boilerDegraderSeconds))
         print("self.boilerStickyStart is {}".format(self.boilerStickyStart))
         print("self.boilerStickyEnd is {}".format(self.boilerStickyEnd))
@@ -79,8 +81,8 @@ class ABoilerController(AController):
             self.accTime += DeltaTime
 
             if self.bRunDisturb:
-                boilerDegrader = max(0, self.accTime - self.boilerDegraderSeconds) / self.boilerDegraderSeconds # After 200000, we reach peak bad boilerism
-                self.Pawn.SetBoilerPerformancePercentage(1 - boilerDegrader * 0.5)
+                boilerDegrader = min(1, max(0, self.accTime - self.boilerDegraderSeconds) / self.boilerGoneSeconds) # After 200000, we reach peak bad boilerism
+                self.Pawn.SetBoilerPerformancePercentage(1 - boilerDegrader * 0.60)
 
                 boilerStickyControls = (max(0, self.accTime - self.boilerStickyStart) / self.boilerStickyEnd)
                 self.Pawn.SetBoilerControlTimeOffset(300 + self.boilerStickyAmount * boilerStickyControls)
