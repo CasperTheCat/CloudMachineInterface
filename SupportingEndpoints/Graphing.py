@@ -115,7 +115,7 @@ class AGraphHolder():
         else:
             return predictionFunction(lh, localXhat, i), nextVal
 
-    def TestRetrainLive(self, maxY, solvedSize, TargetDPI, iTime, color, predictionFunction, retrainCallback, thresholdFunction, loopLimit, labelOverrides=None, label2Overrides=None, backOffset = 15, futureOffset = 15, historyLength = 1000 + Utils.seqLength, detectorFunction=None, filterFunction=None, retrainFilter=None, modulator=None):
+    def TestRetrainLive(self, maxY, solvedSize, TargetDPI, iTime, color, predictionFunction, retrainCallback, thresholdFunction, loopLimit, labelOverrides=None, label2Overrides=None, backOffset = 15, futureOffset = 15, historyLength = 1000 + Utils.seqLength, detectorFunction=None, filterFunction=None, retrainFilter=None, modulator=None, warnFunction=None):
         dataP = []
         dataT = []
         dataS = []
@@ -243,6 +243,8 @@ class AGraphHolder():
                         #delta = forecast - tStat
                         #delta = delta * Utils.StateOnlyWeight[4]
                         #warningBar.append(delta)          
+                        if (warnFunction):
+                            warnFunction(self.history, localHistory, i)
                         
                         ## Detector
                         if (detectorFunction):
@@ -478,7 +480,7 @@ class AGraphHolder():
 
             #print(i, cosineSimilarity, currentTimeError, vecCurrent[4:])
 
-            if (warnFunction)
+            if (warnFunction):
                 warnFunction(self.history, localHistory, i)
 
             ## Detector

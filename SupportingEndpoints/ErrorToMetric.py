@@ -33,6 +33,7 @@ comboBox = [
     "Sindy.dat",
     "OKIDERA.dat",
     "BaseCase.dat",
+    "FollowCase.dat",
     "OKIDERA_FilterData.dat",
     "Sindy_FilterData.dat",
     "DMDc_FilterData.dat",

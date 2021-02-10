@@ -316,6 +316,7 @@ comboBox = [
     "Sindy.dat",
     "OKIDERA.dat",
     "BaseCase.dat",
+    "FollowCase.dat",
     "OKIDERA_FilterData.dat",
     "Sindy_FilterData.dat",
     "DMDc_FilterData.dat",
@@ -383,7 +384,7 @@ for runType in comboBox:
 
     print(RunError.shape)
 
-    
+
 
     Handler_RunError(RunError, runType, "CumulativeSignedError", RtReason)#, lmin=-100, lmax=100)
     Handler_RunError(RunError.cumsum(axis=0), runType, "IntegralSignedError", RtReason)

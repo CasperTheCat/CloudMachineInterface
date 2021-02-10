@@ -188,6 +188,10 @@ def BaseRetrainFunction(history):
 def BaseDetectorFunction(history, feedback, timeBase):
     return False
 
+def FollowingEvalFunction(history, feedback, i):
+    return history[-1][4:] + (history[-1][4:] - history[-2][4:]), []
+
+
 ##### ##### ########## ##### #####
 ## Control Base
 ##
@@ -196,7 +200,7 @@ def EvalFunction(history, feedback, timeBase):
     global model
     global cost
 
-    asU = history.transpose()[:4]
+    #asU = history.transpose()[:4]
 
     ht = history.transpose()
     l1 = ht[:4]#.transpose()
@@ -209,10 +213,12 @@ def EvalFunction(history, feedback, timeBase):
 
     evalBeginTime = time.perf_counter()
 
-    out = A.dot(X) + B.dot(U)
+    out = numpy.array(A.dot(X) + B.dot(U)).squeeze()
 
     evalEndTime = time.perf_counter()
     cost.append(evalEndTime - evalBeginTime)
+
+    #print((out[0][0][0][0][0][0][0][0][0][0][0][0][0][0][0][0][0][0][0][0][0][0][0][0][0][0][0][0][0][0][0][0][0][0][0][0][0][0][0][0][0][0][0][0][0][0][0][0]).shape)
 
     return out, []
 
@@ -721,9 +727,9 @@ def ThresholdFunction(signedError, absoluteError, singleStep):
     global rtReason
 
     shouldRetrainOnFixed = stepsSinceLastTrain * Utils.GetTimeStep() >= 3600 * 6
-    shouldRetrainOnAbsError = numpy.sum(absoluteError) > 200
-    shouldRetrainOnSignError = False#numpy.abs(numpy.sum(signedError)) > 100
-    shouldRetrainOnStepError = False#numpy.sum(numpy.abs(singleStep)) > 2
+    shouldRetrainOnAbsError  = numpy.sum(absoluteError) > 200
+    shouldRetrainOnSignError = numpy.abs(numpy.sum(signedError)) > 100
+    shouldRetrainOnStepError = numpy.sum(numpy.abs(singleStep)) > 2
 
     # Fixed step. Can be rolled into the return bool
     # But it's here to be readable
@@ -757,9 +763,10 @@ def ZeroAllVars():
     tholdRTTimes = 0
 
 comboBox = [
+    (EvalFunction, RetrainFunction, DetectorFunction, None, None, "OKIDERA.dat"),
     (DMDc_EvalFunction, DMDc_RetrainFunction, DMDc_DetectorFunction, None, None, "DMDc.dat"),
     (Sindy_EvalFunction, Sindy_RetrainFunction, Sindy_DetectorFunction, None, None, "Sindy.dat"),
-    (EvalFunction, RetrainFunction, DetectorFunction, None, None, "OKIDERA.dat"),
+    (FollowingEvalFunction, BaseRetrainFunction, BaseDetectorFunction, None, None, "FollowCase.dat"),
     #(MrDMD_EvalFunction, MrDMD_RetrainFunction, MrDMD_DetectorFunction, "MrDMD.dat"),
     (BaseEvalFunction, BaseRetrainFunction, BaseDetectorFunction, None, None, "BaseCase.dat"),
 
