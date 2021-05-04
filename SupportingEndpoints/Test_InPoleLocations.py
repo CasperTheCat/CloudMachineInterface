@@ -12,16 +12,16 @@ import os
 import scipy
 from scipy import signal, fftpack
 from scipy.fftpack import fftshift
-import tensorflow as tf
-from tensorflow import keras
-from tensorflow.keras import layers
+# import tensorflow as tf
+# from tensorflow import keras
+# from tensorflow.keras import layers
 from ProcessSimulation import CSimulator
 from ProcessSimulation import AActor, ABoiler, ABoilerController
 import time
 import matplotlib
 import matplotlib.pyplot
-# matplotlib.interactive(True)
-# matplotlib.use("TkAgg") 
+matplotlib.interactive(True)
+matplotlib.use("TkAgg") 
 import numpy
 import math
 import sys
@@ -31,10 +31,11 @@ import czt
 from past.utils import old_div
 import inspect
 import gc
+from scipy.fftpack import rfft, irfft, fftfreq, fft, rfftfreq
 
 
 
-def ScrubAboveFreq(x, FreqCutoff=0.03, timeBase=0):
+def ScrubAboveFreq(x, FreqCutoff=0.025, timeBase=0, FreqCutoffUpper=0.06):
     tx = x.copy().transpose()
     
     for signalIter in range(tx.shape[0]):
@@ -42,7 +43,20 @@ def ScrubAboveFreq(x, FreqCutoff=0.03, timeBase=0):
 
         # remove 
         cutFreqs = abs(freq) <= FreqCutoff
-        sig_f = sig_f * cutFreqs
+        cutHigh = abs(freq) > FreqCutoffUpper
+
+        tryNotXoring = ~((~cutFreqs) * (~cutHigh))
+
+        sig_f = sig_f * tryNotXoring
+
+
+
+        cutFreqs = abs(freq) <= -FreqCutoff
+        cutHigh = abs(freq) > -FreqCutoffUpper
+
+        tryNotXoring = ~((~cutFreqs) * (~cutHigh))
+
+        sig_f = sig_f * tryNotXoring
 
         #print(czt.freq2time(freq, sig_f, numpy.arange(timeBase, timeBase + x.shape[0]) * Utils.GetTimeStep()))
 
@@ -50,6 +64,95 @@ def ScrubAboveFreq(x, FreqCutoff=0.03, timeBase=0):
         
 
     return tx.transpose()
+
+
+
+
+
+def ScrubAboveFreqFFT(x, FreqCutoff=0.035, timeBase=0, FreqCutoffUpper=0.055):
+    global dmdModel
+
+    print(x.shape)
+
+    # Okay, we do some transforms
+    B = dmdModel.B
+    invB = numpy.linalg.pinv(B)
+
+    ## Copy it
+    PreU = x.copy().transpose()[:4].transpose()
+
+    ModifiedOutput = numpy.zeros((PreU.shape[0], 3))
+
+    #print("NB: Max Freq: {}".format(Utils.GetDetectableFrequency()))
+
+    for sample in range(PreU.shape[0]):
+        workingData = PreU[sample]
+        ModU = B.dot(workingData)
+        ModifiedOutput[sample] = ModU
+        
+    tx = ModifiedOutput.transpose()
+    #tx = PreU.transpose()
+    #print("Hdskfjaskdjf", tx.shape)
+
+    for signalIter in range(tx.shape[0]):
+        f_signal = rfft(tx[signalIter])
+        W = rfftfreq(tx[signalIter].size, d=Utils.GetTimeStep())
+
+        cutFreqs = W <= FreqCutoff
+        cutHigh = W > FreqCutoffUpper
+
+        tryNotXoring = ((~cutFreqs) * (~cutHigh))
+
+        cut_f_signal = f_signal.copy()
+        cut_f_signal[tryNotXoring] = 0#*= 0.1  # filter all frequencies between
+
+        cut_signal = irfft(cut_f_signal)
+        tx[signalIter] = cut_signal
+
+        # maxY = 105
+        # maxTDPI = 180
+        # resolution = numpy.array((3840, 2160)) / 2
+        # TargetDPI = maxTDPI
+        # scalar = 2
+        # solvedSize = resolution / TargetDPI
+        # if (timeBase + 1) % 100 == 0:
+        #     f0 = matplotlib.pyplot.figure(8, dpi=TargetDPI, figsize=solvedSize)
+        #     f0.clf()
+        #     a0 = f0.gca()
+        #     #matplotlib.pyplot.plot(f_fft / 1e3, np.angle(sig_fft), 'k',    label='FFT')
+        #     a0.plot(numpy.arange(tx.shape[1]) / Utils.GetTimeStep(), cut_f_signal, label='CZT')
+        #     a0.set_xlabel("Frequency (Hz)")
+        #     a0.set_ylabel("Signal phase. (Degrees)")
+        #     ##matplotlib.pyplot.xlim([f_fft.min()/1e3, f_fft.max()/1e3])
+        #     #matplotlib.pyplot.legend()
+        #     a0.set_title(Utils.outnames[signalIter])
+        #     f0.savefig("WW_step.{}_dilation.{}_esr.{}_ssr.{}_{}_TTL.png".format(Utils.step, Utils.dilation, 2 * Utils.GetDetectableFrequency(), Utils.GetSimulatorFrequency(), signalIter))
+       
+        #input()
+
+
+    #restore data
+    # origState = x.transpose()[4:]
+    # tx = numpy.concatenate((tx, origState))
+
+    # print(tx.shape)
+    # return tx.transpose()
+
+    # unflip tx
+    ModifiedOutput = tx.transpose()
+
+    for sample in range(PreU.shape[0]):
+        workingData = ModifiedOutput[sample] 
+        ModU = invB.dot(workingData)
+        PreU[sample] = ModU
+
+    origState = x.transpose()[4:]
+    PreU = numpy.concatenate((PreU.transpose(), origState))
+
+    #print(origState.shape)
+
+    return PreU.transpose()
+
 
 
 
@@ -129,14 +232,14 @@ def FilterFrequenciesByPower(x, PowerCutoff=0.005, timeBase=0):
 
 
 maxY = 105
-maxTDPI = 120
+maxTDPI = 180
 resolution = numpy.array((1920, 1080))
 TargetDPI = maxTDPI
 
 solvedSize = resolution / TargetDPI
 
 iTime = 60
-color = (0.05,0.05,0.05)
+color = (0.05,0.05,0.05)#(1,1,1)#(0.95, 0.95, 0.95)#(0.05,0.05,0.05)
 
 
 
@@ -180,7 +283,7 @@ model = None
 with open("Pickle.era", "rb+") as f:
     model = pickle.load(f)
 
-predmodel = keras.models.load_model("model.tensorflow")
+#predmodel = keras.models.load_model("model.tensorflow")
 
 cost = []
 costToRT = []
@@ -208,6 +311,10 @@ def BaseRetrainFunction(history):
 def BaseDetectorFunction(history, feedback, timeBase):
     return False
 
+
+def FollowingEvalFunction(history, feedback, i):
+    return history[-1][4:] + (history[-1][4:] - history[-2][4:]), []
+
 ##### ##### ########## ##### #####
 ## Control Base
 ##
@@ -216,9 +323,27 @@ def EvalFunction(history, feedback, timeBase):
     global model
     global cost
 
-    asU = history.transpose()[:4]
+    #asU = history.transpose()[:4]
+
+    ht = history.transpose()
+    l1 = ht[:4]#.transpose()
+    l2 = ht[4:]#.transpose()
+
+    U = l1.transpose()[-1]
+    X = l2.transpose()[-1]
+
+    A,B,C,D = control.ssdata(model)
 
     evalBeginTime = time.perf_counter()
+
+    out = numpy.array(A.dot(X) + B.dot(U)).squeeze()
+
+    evalEndTime = time.perf_counter()
+    cost.append(evalEndTime - evalBeginTime)
+
+    #print((out[0][0][0][0][0][0][0][0][0][0][0][0][0][0][0][0][0][0][0][0][0][0][0][0][0][0][0][0][0][0][0][0][0][0][0][0][0][0][0][0][0][0][0][0][0][0][0][0]).shape)
+
+    return out, []
 
     _, yo, xo = control.forced_response(
         model,
@@ -282,6 +407,8 @@ def DetectorFunction(history, feedback, timeBase):
 
     if timeBase != 1500:
         return False
+
+    return False
 
     tth += 1
     # yShift = fftshift(history[-1]) # shift of the step function
@@ -566,6 +693,12 @@ def DMDc_DetectorFunction(history, feedback, timeBase):
     # ### Laplace Transform
     # lU = numpy.random.laplace()
 
+    maxY = 105
+    maxTDPI = 360
+    resolution = numpy.array((3840, 2160))
+    TargetDPI = maxTDPI
+    scalar = 2
+    solvedSize = resolution / TargetDPI
     # ### Do the maths!
     # uVector = history[-1]
     # uVt = timeBase + history.shape[0]
@@ -603,10 +736,11 @@ def DMDc_DetectorFunction(history, feedback, timeBase):
 
         freq, sig_f = czt.time2freq(numpy.arange(timeBase, timeBase + workingData.shape[0]) * Utils.GetTimeStep(), workingData)
 
-        f0 = matplotlib.pyplot.figure(8, dpi=120, figsize=(36,18))
+        f0 = matplotlib.pyplot.figure(8, dpi=TargetDPI, figsize=solvedSize)
         a0 = f0.gca()
         #matplotlib.pyplot.plot(f_fft / 1e3, np.angle(sig_fft), 'k',    label='FFT')
-        a0.plot(freq,  numpy.angle(sig_f),   'ro--', label='CZT')
+        phaseInDegs = numpy.angle(sig_f) * (180 / math.pi)
+        a0.plot(freq,  phaseInDegs, label='CZT',  linewidth=2)
         a0.set_xlabel("Frequency (Hz)")
         a0.set_ylabel("Signal phase. (Degrees)")
         ##matplotlib.pyplot.xlim([f_fft.min()/1e3, f_fft.max()/1e3])
@@ -615,10 +749,10 @@ def DMDc_DetectorFunction(history, feedback, timeBase):
         f0.savefig("WW_step.{}_dilation.{}_esr.{}_ssr.{}_{}_Phase.png".format(Utils.step, Utils.dilation, 2 * Utils.GetDetectableFrequency(), Utils.GetSimulatorFrequency(), signalIter))
         f0.clf()
 
-        f1 = matplotlib.pyplot.figure(9, dpi=120, figsize=(36,18))
+        f1 = matplotlib.pyplot.figure(9, dpi=TargetDPI, figsize=solvedSize)
         a1 = f1.gca()
         #matplotlib.pyplot.plot(f_fft / 1e3, np.angle(sig_fft), 'k',    label='FFT')
-        a1.plot(freq,  numpy.abs(sig_f),   'ro--', label='CZT')
+        a1.plot(freq,  numpy.abs(sig_f), label='CZT', linewidth=2)
         a1.set_xlabel("Frequency (Hz)")
         a1.set_ylabel("Signal Mag. (dB)")
         a1.set_title(Utils.outnames[signalIter])
@@ -637,7 +771,7 @@ def DMDc_DetectorFunction(history, feedback, timeBase):
         
         poles = 0
 
-        fx = matplotlib.pyplot.figure(signalIter + 10, dpi=120, figsize=(36,18))
+        fx = matplotlib.pyplot.figure(signalIter + 10, dpi=TargetDPI, figsize=solvedSize)
         ax = fx.gca()
 
         for cmptePle in zip(freq, sig_f):
@@ -786,38 +920,73 @@ def Sindy_RetrainFunction(history):
 def Sindy_DetectorFunction(history, feedback, timeBase):
     return False
 
+rtReason = []
 
 def ThresholdFunction(signedError, absoluteError):
     global stepsSinceLastTrain
     global tholdRTTimes
+    global rtReason
 
-    shouldRetrainOnFixed = stepsSinceLastTrain > 1500 #* Utils.GetTimeStep() >= 1000
-    shouldRetrainOnError = numpy.sum(absoluteError) > 1000
-
-    stepsSinceLastTrain += 1
+    shouldRetrainOnFixed = stepsSinceLastTrain * Utils.GetTimeStep() >= 3600 * 6
+    shouldRetrainOnAbsError  = numpy.sum(absoluteError) > 2000
+    shouldRetrainOnSignError = numpy.abs(numpy.sum(signedError)) > 1000
+    shouldRetrainOnStepError = False#numpy.sum(numpy.abs(singleStep)) > 2
 
     # Fixed step. Can be rolled into the return bool
     # But it's here to be readable
     if (shouldRetrainOnFixed):
         tholdRTTimes += 1
+    
+    rtReason.append((stepsSinceLastTrain, shouldRetrainOnFixed, shouldRetrainOnAbsError, shouldRetrainOnSignError, shouldRetrainOnStepError))
 
-    if (shouldRetrainOnError or shouldRetrainOnFixed):
-        #stepsSinceLastTrain = 0
+    stepsSinceLastTrain += 1
+
+    if (shouldRetrainOnAbsError or shouldRetrainOnFixed or shouldRetrainOnSignError or shouldRetrainOnStepError):
+        stepsSinceLastTrain = 0
         return True
 
     return False
 
-def WarningFunction(history, oracle, baseT):
+memelimit = 0
+
+def WarningFunction(history, oracle, baseT, sim):
     global storedOverLimit
+    global memelimit
+
+    # Unpickle Sim
+    boiler = pickle.loads(sim[0])
+
     # Check end of oracle
-    if oracle[-1] > 99:
-        storedOverLimit += 2
-        print("Inc Reason: EOB is 100")
-    elif numpy.argmax(oracle > 99) != 0:
-        storedOverLimit += 1
-        print("Inc Reason: ARGMAX is non-zero")
-    else:
-        storedOverLimit -= 1
+    if oracle[-1][4] >= 100:
+        storedOverLimit += 32
+        print("Inc Reason: EOB is 100. OverLimit: {}".format(storedOverLimit))
+        
+        input()
+    elif numpy.argmax(oracle.transpose()[4] >= 100) != 0:
+        print(oracle.transpose()[4] >= 100)
+        storedOverLimit += numpy.sum(oracle.transpose()[4] >= 100)
+        print("Inc Reason: ARGMAX is non-zero OverLimit: {}".format(storedOverLimit))
+        
+        input()
+    elif storedOverLimit > 0:
+        storedOverLimit /= 1.1
+
+    # if(baseT > 150):
+    #     storedOverLimit = math.sin(memelimit) * 10
+    #     memelimit += 1
+    if storedOverLimit > 0:
+        memelimit = 1
+    #boiler.SetBoilerLimiter(memelimit * 100)
+    boiler.SetBoilerLimiter(storedOverLimit)
+    print(storedOverLimit)
+    #boiler.SetBoilerCapacity(20000 - storedOverLimit * 100)
+
+    sim[0] = pickle.dumps(boiler)
+
+    if history[-15][4] >= 100:
+        print("BANGBANGABNAGNABANGABNAGNABANGABNAGNABANG")
+        input()
+        input()
 
 
 def ZeroAllVars():
@@ -836,9 +1005,9 @@ def ZeroAllVars():
     storedOverLimit = 0
 
 def ModulateSP_LF(base, i):
-    #return base
-    if i >= 600:
-        return 95 - storedOverLimit
+    #return 45
+    if i >= 100:
+        #return 95# - storedOverLimit * 2
         tgFreqHz = 0.05
 
         # Each sample adds 1 radians per ST
@@ -853,14 +1022,19 @@ def ModulateSP_LF(base, i):
 
         return base + 50 * math.sin(i * freqMul)
     else:
-        return base
+        return 45# base
 
 
 
 comboBox = [
     # (Sindy_EvalFunction, Sindy_RetrainFunction, Sindy_DetectorFunction, None, None, "Sindy.dat"),
+    
+    #(DMDc_EvalFunction, DMDc_RetrainFunction, DMDc_DetectorFunction, None, None, None, "DMDc.dat"),
     #(DMDc_EvalFunction, DMDc_RetrainFunction, DMDc_DetectorFunction, None, None, ModulateSP_LF, "DMDc.dat"),
-    (EvalFunction, RetrainFunction, DetectorFunction, None, None, ModulateSP_LF, "OKIDERA.dat"),
+    (DMDc_EvalFunction, DMDc_RetrainFunction, DMDc_DetectorFunction, ScrubAboveFreqFFT, ScrubAboveFreqFFT, ModulateSP_LF, "DMDcFiltered.dat"),
+    
+    (FollowingEvalFunction, BaseRetrainFunction, BaseDetectorFunction, None, None, ModulateSP_LF, "FollowCase.dat"),
+    #(EvalFunction, RetrainFunction, DetectorFunction, None, None, ModulateSP_LF, "OKIDERA.dat"),
     # #(MrDMD_EvalFunction, MrDMD_RetrainFunction, MrDMD_DetectorFunction, "MrDMD.dat"),
     # (BaseEvalFunction, BaseRetrainFunction, BaseDetectorFunction, None, None, "BaseCase.dat"),
 
@@ -890,8 +1064,8 @@ for evf, rtf, dtf, flt, rtfflt, modu, name in comboBox:
     ZeroAllVars()
 
     graphing = Graphing.AGraphHolder(seed, spTemp, spTarg, dlp)
-    _, results, timeResults = graphing.TestRetraining(evf, rtf, ThresholdFunction, 16384, detectorFunction=dtf, filterFunction=flt, retrainFilter=rtfflt, modulator=modu, warnFunction=WarningFunction)
-    #graphing.TestRetrainLive(maxY, solvedSize, TargetDPI, iTime, color, evf, rtf, ThresholdFunction, 300, ["Temperature (C)", "Heater Power (kW)", "Water Level (L)", "Target Temperature (C)", "Cosine Sim.", "Error"], filterFunction=flt, retrainFilter=rtfflt, modulator=modu, detectorFunction=dtf)
+    #_, results, timeResults = graphing.TestRetraining(evf, rtf, ThresholdFunction, 16384, detectorFunction=dtf, filterFunction=flt, retrainFilter=rtfflt, modulator=modu, warnFunction=WarningFunction)
+    graphing.TestRetrainLive(maxY, solvedSize, TargetDPI, iTime, color, evf, rtf, ThresholdFunction, 2000, ["Temperature (C)", "Heater Power (kW)", "Water Level (L)", "Target Temperature (C)", "", ""], filterFunction=flt, retrainFilter=rtfflt, modulator=modu, detectorFunction=dtf, warnFunction=WarningFunction)
 
 
 

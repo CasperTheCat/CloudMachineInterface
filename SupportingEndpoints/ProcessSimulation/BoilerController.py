@@ -16,7 +16,13 @@ class ABoilerController(AController):
         self.temperatureSetPoint = setpoint
         self.Pawn = None
         #self.PID = PIDController(setpoint, 100, 0, 0)
+
+        # Below PID is used for most tests
         self.PID = PIDController(setpoint, 32, 0.00125, 8)
+
+        # Uncomment this one for the Chapter 7 tests
+        self.PID = PIDController(setpoint, 32, 0.0025, 8)
+
         #self.PID = StdPIDController(setpoint, 2, 4000, 8000)
         self.accTime = 0
         self.bRunDisturb = True
@@ -58,6 +64,7 @@ class ABoilerController(AController):
         print("self.boilerPInOffsetScale3 is {}".format(self.boilerPInOffsetScale3))
         print("self.inWaterBase is {}".format(self.inWaterBase))
         print("self.inWaterTemp is {}. Flux is {}".format(self.inWaterTemp,self.inWaterFlux))
+        print("self.boilerGoneSeconds is {}".format(self.boilerGoneSeconds))
 
         super().__init__()
 

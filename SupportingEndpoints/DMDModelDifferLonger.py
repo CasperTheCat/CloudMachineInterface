@@ -15,7 +15,6 @@ Bmats = []
 Cmats = []
 Dmats = []
 
-
 filepath = ""
 
 if len(sys.argv) > 1:
@@ -112,22 +111,22 @@ fig = matplotlib.pyplot.figure(dpi=TargetDPI, figsize=solvedSize)
 axe = Axes3D(fig)#fig.gca()
 
 #axe.plot(AMatrixDifferenceMags)
-print(numpy.array(PCAA).shape)
+#print(numpy.array(PCAA).shape)
 PCAAN = numpy.array(PCAA).T
 #axe.scatter3D(PCAAN[0].T, PCAAN[1].T, PCAAN[2].T)
 abb = numpy.arange(PCAAN.shape[1])
 abc = numpy.expand_dims(abb, 1)
-print(abc.shape)
+#print(abc.shape)
 abcdefg = numpy.dot(([1],[0],[0],[1]), abc.T) / PCAAN.shape[1]
 abcdefg[3] = [1] * PCAAN.shape[1]
 abcdefg[1] = 1 - (abb / PCAAN.shape[1])
-print(abcdefg.T)
+#print(abcdefg.T)
 plottedLns = axe.scatter3D(PCAAN[0].T, PCAAN[1].T, PCAAN[2].T, c=abcdefg.T, s=6)
 axe.plot3D(PCAAN[0].T, PCAAN[1].T, PCAAN[2].T, linewidth=0.75)
 axe.dist = distOverscan
 #plottedLns[0].set_color("pink")
 
-fig.savefig("AMatG2RPCA.png")
+fig.savefig("LongerAMatG2RPCA.png")
 
 
 
@@ -145,22 +144,22 @@ fig = matplotlib.pyplot.figure(dpi=TargetDPI, figsize=solvedSize)
 axe = Axes3D(fig)#fig.gca()
 
 #axe.plot(AMatrixDifferenceMags)
-print(numpy.array(PCAA).shape)
+#print(numpy.array(PCAA).shape)
 PCAAN = numpy.array(PCAA).T
 #axe.scatter3D(PCAAN[0].T, PCAAN[1].T, PCAAN[2].T)
 abb = numpy.arange(PCAAN.shape[1])
 abc = numpy.expand_dims(abb, 1)
-print(abc.shape)
+#print(abc.shape)
 abcdefg = numpy.dot(([1],[0],[0],[1]), abc.T) / PCAAN.shape[1]
 abcdefg[3] = [1] * PCAAN.shape[1]
 abcdefg[1] = 1 - (abb / PCAAN.shape[1])
-print(abcdefg.T)
+#print(abcdefg.T)
 plottedLns = axe.scatter3D(PCAAN[0].T, PCAAN[1].T, PCAAN[2].T, c=abcdefg.T, s=6)
 axe.plot3D(PCAAN[0].T, PCAAN[1].T, PCAAN[2].T, linewidth=0.75)
 axe.dist = distOverscan
 #plottedLns[0].set_color("pink")
 
-fig.savefig("BMatG2RPCA.png")
+fig.savefig("LongerBMatG2RPCA.png")
 
 
 
@@ -182,22 +181,24 @@ fig = matplotlib.pyplot.figure(dpi=TargetDPI, figsize=solvedSize)
 axe = Axes3D(fig)#fig.gca()
 
 #axe.plot(AMatrixDifferenceMags)
-print(numpy.array(PCAA).shape)
+#print(numpy.array(PCAA).shape)
 PCAAN = numpy.array(PCAA).T
 #axe.scatter3D(PCAAN[0].T, PCAAN[1].T, PCAAN[2].T)
 abb = numpy.arange(PCAAN.shape[1])
 abc = numpy.expand_dims(abb, 1)
-print(abc.shape)
+#print(abc.shape)
 abcdefg = numpy.dot(([1],[0],[0],[1]), abc.T) / PCAAN.shape[1]
 abcdefg[3] = [1] * PCAAN.shape[1]
 abcdefg[1] = 1 - (abb / PCAAN.shape[1])
-print(abcdefg.T)
+#print(abcdefg.T)
 plottedLns = axe.scatter3D(PCAAN[0].T, PCAAN[1].T, PCAAN[2].T, c=abcdefg.T, s=6)
 axe.plot3D(PCAAN[0].T, PCAAN[1].T, PCAAN[2].T, linewidth=0.75)
 axe.dist = distOverscan
 #plottedLns[0].set_color("pink")
 
-fig.savefig("NonDiffAMatrix.png")
+fig.savefig("NonDiffAMatrixLong.png")
+
+
 
 PCAA = []
 for i in Bmats:
@@ -211,23 +212,23 @@ fig = matplotlib.pyplot.figure(dpi=TargetDPI, figsize=solvedSize)
 axe = Axes3D(fig)#fig.gca()
 
 #axe.plot(AMatrixDifferenceMags)
-print(numpy.array(PCAA).shape)
+#print(numpy.array(PCAA).shape)
 PCAAN = numpy.array(PCAA).T
 #axe.scatter3D(PCAAN[0].T, PCAAN[1].T, PCAAN[2].T)
 abb = numpy.arange(PCAAN.shape[1])
 abc = numpy.expand_dims(abb, 1)
-print(abc.shape)
+#print(abc.shape)
 abcdefg = numpy.dot(([1],[0],[0],[1]), abc.T) / PCAAN.shape[1]
 abcdefg[3] = [1] * PCAAN.shape[1]
 abcdefg[1] = 1 - (abb / PCAAN.shape[1])
-print(abcdefg.T)
+#print(abcdefg.T)
 plottedLns = axe.scatter3D(PCAAN[0].T, PCAAN[1].T, PCAAN[2].T, c=abcdefg.T, s=6)
 axe.plot3D(PCAAN[0].T, PCAAN[1].T, PCAAN[2].T, linewidth=0.75)
 axe.dist = distOverscan
 #plottedLns[0].set_color("pink")
 
 
-fig.savefig("NonDiffBMatrix.png")
+fig.savefig("NonDiffBMatrixLong.png")
 
 
 
@@ -242,7 +243,7 @@ axe2.set_ylabel("Total Change")
 axe2.set_title("A Matrix Change")
 
 
-fig2.savefig("AMatRunning.png")
+fig2.savefig("LongerAMatRunning.png")
 
 
 
@@ -255,7 +256,7 @@ axe2.set_ylabel("Total Change")
 axe2.set_title("B Matrix Change")
 
 
-fig2.savefig("BMatRunning.png")
+fig2.savefig("LongerBMatRunning.png")
 
 
 input()

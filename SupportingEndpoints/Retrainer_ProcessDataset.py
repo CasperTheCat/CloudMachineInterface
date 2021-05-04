@@ -18,21 +18,54 @@ def ShouldHighlight(x, y, z):
 
         indices = numpy.logical_or(indices, working == z)
 
-    print(indices.any())
+    #print(indices.any())
 
     return indices
+
+def GetHighlightSize(x, isEnabled):
+
+    if not isEnabled:
+        return 2**63
+
+    # Get all
+    lh = x.transpose()
+    A, B = Utils.GetDMDcRetrainMagnitudes()
+
+    lstOfHeights = numpy.zeros(lh.shape[0])
+    indexOfAB = 0
+
+    for i in range(lh.shape[0]):
+        # Ignore 0, it's non-zero unless 1-4 are set
+        anyRT = lh[i][1] or lh[i][2] or lh[i][3] or lh[i][4]
+        if(anyRT):
+            if(indexOfAB < A.shape[0]):
+                # Only if we RT'd
+                lstOfHeights[i] = A[indexOfAB]
+                lstOfHeights[i+1]=A[indexOfAB]
+                lstOfHeights[i+2]=B[indexOfAB]
+                lstOfHeights[i+3]=B[indexOfAB]
+
+            # Loop will increment by 1, but we want 4
+            i += 3 
+            indexOfAB += 1
+            print(indexOfAB)
+
+    return lstOfHeights
 
 def CreateAndSaveGraphTri(a, name, labels, limit_min = None, limit_max = None, rtReason = None):
     inShape = a[0].shape[0]
     deltaShape = rtReason.shape[0] - inShape
     LineMaker = rtReason[deltaShape // 2:-(deltaShape // 2)].transpose()
 
+    EnableHighlightResizing = "DMDc" in name
+
     print("LN {}".format(LineMaker.shape))
+    #print(LineMaker.transpose()[0:10])
 
     try:
         maxY = 105
-        maxTDPI = 96
-        resolution = numpy.array((1920, 1080))
+        maxTDPI = 300
+        resolution = numpy.array((2536, 2536))
         TargetDPI = maxTDPI
         solvedSize = resolution / TargetDPI
 
@@ -119,28 +152,44 @@ def CreateAndSaveGraphTri(a, name, labels, limit_min = None, limit_max = None, r
         dra1.set_xdata(_range)
         dra1.set_ydata(a[lookupInt])
         ax1.fill_between(_range, a[lookupInt] + a[lookupInt+3] * 2, a[lookupInt] - a[lookupInt+3] * 2)
-        ax1.fill_between(_range, 2**31, -2**31, where=ShouldHighlight(LineMaker, 1, 1), color="yellow")
-        ax1.fill_between(_range, 2**31, -2**31, where=ShouldHighlight(LineMaker, 2, 1), color="blue")
-        ax1.fill_between(_range, 2**31, -2**31, where=ShouldHighlight(LineMaker, 3, 1), color="green")
-        ax1.fill_between(_range, 2**31, -2**31, where=ShouldHighlight(LineMaker, 4, 1), color="magenta")
+        ax1.fill_between(_range,a[lookupInt] + GetHighlightSize(LineMaker, EnableHighlightResizing), a[lookupInt] + GetHighlightSize(LineMaker, EnableHighlightResizing) * -1, where=ShouldHighlight(LineMaker, 1, 1), color="yellow")
+        ax1.fill_between(_range,a[lookupInt] + GetHighlightSize(LineMaker, EnableHighlightResizing), a[lookupInt] + GetHighlightSize(LineMaker, EnableHighlightResizing) * -1, where=ShouldHighlight(LineMaker, 2, 1), color="blue")
+        ax1.fill_between(_range,a[lookupInt] + GetHighlightSize(LineMaker, EnableHighlightResizing), a[lookupInt] + GetHighlightSize(LineMaker, EnableHighlightResizing) * -1, where=ShouldHighlight(LineMaker, 3, 1), color="green")
+        ax1.fill_between(_range,a[lookupInt] + GetHighlightSize(LineMaker, EnableHighlightResizing), a[lookupInt] + GetHighlightSize(LineMaker, EnableHighlightResizing) * -1, where=ShouldHighlight(LineMaker, 4, 1), color="magenta")
+
+        # ax1.fill_between(_range, -200 + GetHighlightSize(LineMaker, EnableHighlightResizing), -200 + GetHighlightSize(LineMaker, EnableHighlightResizing) * -1, where=ShouldHighlight(LineMaker, 1, 1), color="yellow")
+        # ax1.fill_between(_range, -200 + GetHighlightSize(LineMaker, EnableHighlightResizing), -200 + GetHighlightSize(LineMaker, EnableHighlightResizing) * -1, where=ShouldHighlight(LineMaker, 2, 1), color="blue")
+        # ax1.fill_between(_range, -200 + GetHighlightSize(LineMaker, EnableHighlightResizing), -200 + GetHighlightSize(LineMaker, EnableHighlightResizing) * -1, where=ShouldHighlight(LineMaker, 3, 1), color="green")
+        # ax1.fill_between(_range, -200 + GetHighlightSize(LineMaker, EnableHighlightResizing), -200 + GetHighlightSize(LineMaker, EnableHighlightResizing) * -1, where=ShouldHighlight(LineMaker, 4, 1), color="magenta")
+        
 
         lookupInt = 1 # I'm lazy
         dra2.set_xdata(_range)
         dra2.set_ydata(a[lookupInt])
         ax2.fill_between(_range, a[lookupInt] + a[lookupInt+3] * 2, a[lookupInt] - a[lookupInt+3] * 2)
-        ax2.fill_between(_range, 2**31, -2**31, where=ShouldHighlight(LineMaker, 1, 1), color="yellow")
-        ax2.fill_between(_range, 2**31, -2**31, where=ShouldHighlight(LineMaker, 2, 1), color="blue")
-        ax2.fill_between(_range, 2**31, -2**31, where=ShouldHighlight(LineMaker, 3, 1), color="green")
-        ax2.fill_between(_range, 2**31, -2**31, where=ShouldHighlight(LineMaker, 4, 1), color="magenta")
+        ax2.fill_between(_range,a[lookupInt] + GetHighlightSize(LineMaker, EnableHighlightResizing), a[lookupInt] + GetHighlightSize(LineMaker, EnableHighlightResizing) * -1, where=ShouldHighlight(LineMaker, 1, 1), color="yellow")
+        ax2.fill_between(_range,a[lookupInt] + GetHighlightSize(LineMaker, EnableHighlightResizing), a[lookupInt] + GetHighlightSize(LineMaker, EnableHighlightResizing) * -1, where=ShouldHighlight(LineMaker, 2, 1), color="blue")
+        ax2.fill_between(_range,a[lookupInt] + GetHighlightSize(LineMaker, EnableHighlightResizing), a[lookupInt] + GetHighlightSize(LineMaker, EnableHighlightResizing) * -1, where=ShouldHighlight(LineMaker, 3, 1), color="green")
+        ax2.fill_between(_range,a[lookupInt] + GetHighlightSize(LineMaker, EnableHighlightResizing), a[lookupInt] + GetHighlightSize(LineMaker, EnableHighlightResizing) * -1, where=ShouldHighlight(LineMaker, 4, 1), color="magenta")
+
+        # ax2.fill_between(_range, -200 + GetHighlightSize(LineMaker, EnableHighlightResizing), -200 + GetHighlightSize(LineMaker, EnableHighlightResizing) * -1, where=ShouldHighlight(LineMaker, 1, 1), color="yellow")
+        # ax2.fill_between(_range, -200 + GetHighlightSize(LineMaker, EnableHighlightResizing), -200 + GetHighlightSize(LineMaker, EnableHighlightResizing) * -1, where=ShouldHighlight(LineMaker, 2, 1), color="blue")
+        # ax2.fill_between(_range, -200 + GetHighlightSize(LineMaker, EnableHighlightResizing), -200 + GetHighlightSize(LineMaker, EnableHighlightResizing) * -1, where=ShouldHighlight(LineMaker, 3, 1), color="green")
+        # ax2.fill_between(_range, -200 + GetHighlightSize(LineMaker, EnableHighlightResizing), -200 + GetHighlightSize(LineMaker, EnableHighlightResizing) * -1, where=ShouldHighlight(LineMaker, 4, 1), color="magenta")
 
         lookupInt = 2 # I'm lazy
         dra3.set_xdata(_range)
         dra3.set_ydata(a[lookupInt])
         ax3.fill_between(_range, a[lookupInt] + a[lookupInt+3] * 2, a[lookupInt] - a[lookupInt+3] * 2)
-        ax3.fill_between(_range, 2**31, -2**31, where=ShouldHighlight(LineMaker, 1, 1), color="yellow")
-        ax3.fill_between(_range, 2**31, -2**31, where=ShouldHighlight(LineMaker, 2, 1), color="blue")
-        ax3.fill_between(_range, 2**31, -2**31, where=ShouldHighlight(LineMaker, 3, 1), color="green")
-        ax3.fill_between(_range, 2**31, -2**31, where=ShouldHighlight(LineMaker, 4, 1), color="magenta")
+        ax3.fill_between(_range,a[lookupInt] + GetHighlightSize(LineMaker, EnableHighlightResizing), a[lookupInt] + GetHighlightSize(LineMaker, EnableHighlightResizing) * -1, where=ShouldHighlight(LineMaker, 1, 1), color="yellow")
+        ax3.fill_between(_range,a[lookupInt] + GetHighlightSize(LineMaker, EnableHighlightResizing), a[lookupInt] + GetHighlightSize(LineMaker, EnableHighlightResizing) * -1, where=ShouldHighlight(LineMaker, 2, 1), color="blue")
+        ax3.fill_between(_range,a[lookupInt] + GetHighlightSize(LineMaker, EnableHighlightResizing), a[lookupInt] + GetHighlightSize(LineMaker, EnableHighlightResizing) * -1, where=ShouldHighlight(LineMaker, 3, 1), color="green")
+        ax3.fill_between(_range,a[lookupInt] + GetHighlightSize(LineMaker, EnableHighlightResizing), a[lookupInt] + GetHighlightSize(LineMaker, EnableHighlightResizing) * -1, where=ShouldHighlight(LineMaker, 4, 1), color="magenta")
+
+        ax3.fill_between(_range, -200 + GetHighlightSize(LineMaker, EnableHighlightResizing), -200, where=ShouldHighlight(LineMaker, 1, 1), color="yellow")
+        ax3.fill_between(_range, -200 + GetHighlightSize(LineMaker, EnableHighlightResizing), -200, where=ShouldHighlight(LineMaker, 2, 1), color="blue")
+        ax3.fill_between(_range, -200 + GetHighlightSize(LineMaker, EnableHighlightResizing), -200, where=ShouldHighlight(LineMaker, 3, 1), color="green")
+        ax3.fill_between(_range, -200 + GetHighlightSize(LineMaker, EnableHighlightResizing), -200, where=ShouldHighlight(LineMaker, 4, 1), color="magenta")
         
     except Exception as e:
         print(e)
@@ -313,6 +362,8 @@ def Handler_ConcatTimeSeries(timeSeries1, timeSeries2, timeSeries3):
 
 comboBox = [
     "DMDc.dat",
+    "DMDc_Raw.dat",
+    "DMDc_FilterBoth.dat",
     "Sindy.dat",
     "OKIDERA.dat",
     "BaseCase.dat",
@@ -336,6 +387,9 @@ if not os.path.exists("./Results/"):
 for runType in comboBox:
     print("Processing {}".format(runType))
     
+    if not os.path.exists("Error_" + runType):
+        continue
+
     RunError = []
     RunInclusiveTime = []
     RunEvaluationTime = []

@@ -22,6 +22,8 @@ class ABoiler(AActor):
         self.boilerPercent = 0
         self.boilerCapacity = initBoilerPowerWatts
         self.boilerPerformance = self.boilerCapacity
+        self.boilerLimiter = 0
+        self.boilerOneMinusDegradation = 1
 
         self.SetBoilerPercent = 0
         self.BoilerControlTime = 300
@@ -31,8 +33,26 @@ class ABoiler(AActor):
 
         super().__init__()
     
+    ## Used to directly affect the boilers power
+    ## See method 3
+    def SetBoilerLimiter(self, value):
+        l = max(min(value * 0.01, 1), 0)
+        self.boilerLimiter = l
+    
+    ## Used by method 2
+    def SetBoilerCapacity(self, value):
+        # When we update this, we want to know what the degraded state was
+        
+        # Update Capacity
+        self.boilerCapacity = value
+
+        # Update Performance
+        self.SetBoilerPerformancePercentage(self.boilerOneMinusDegradation)
+
+
     def SetBoilerPerformancePercentage(self, value):
         sanitisedPercent = max(min(value, 1), 0)
+        self.boilerOneMinusDegradation = sanitisedPercent
         self.boilerPerformance = self.boilerCapacity * sanitisedPercent
 
     def SetBoilerControlTimeOffset(self, value):
@@ -53,6 +73,8 @@ class ABoiler(AActor):
     def GetPowerUse(self):
         return self.powerUseWatts
 
+    def GetBoilerPerf(self):
+        return (self.boilerPercent * self.boilerPerformance * (1 - self.boilerLimiter))
 
     # Setters for controlling the world
     def SetInflowWaterTemp(self, SetPoint: float):
@@ -83,7 +105,7 @@ class ABoiler(AActor):
 
         if (self.waterVolCurrent > 0):
             s1 = (self.waterTemperature * self.waterVolCurrent + lWaterIncoming * self.waterInTemperature) / (self.waterVolCurrent + lWaterIncoming)
-            s2 = (self.boilerPercent * self.boilerPerformance * DeltaTime) / (4200 * self.waterVolCurrent)
+            s2 = (self.boilerPercent * self.boilerPerformance * (1 - self.boilerLimiter) * DeltaTime) / (4200 * self.waterVolCurrent)
             newTemp = (s1 + s2) - self.dissipationRateCPerSecond * DeltaTime
             self.waterTemperature = newTemp
 

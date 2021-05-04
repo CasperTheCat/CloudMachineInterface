@@ -30,6 +30,8 @@ def ComputeMedianSig(x):
 
 comboBox = [
     "DMDc.dat",
+    "DMDc_Raw.dat",
+    "DMDc_FilterBoth.dat",
     "Sindy.dat",
     "OKIDERA.dat",
     "BaseCase.dat",
@@ -53,6 +55,9 @@ if not os.path.exists("./Results/"):
 for runType in comboBox:
     print("Processing {}".format(runType))
     
+    if not os.path.exists("Error_" + runType):
+        continue
+
     RunError = []
     RunInclusiveTime = []
     RunEvaluationTime = []

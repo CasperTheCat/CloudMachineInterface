@@ -13,11 +13,12 @@ import pysindy
 import pydmd
 import matplotlib
 import matplotlib.pyplot
+import matplotlib.patches
 import pandas
 import os
-import tensorflow as tf
-from tensorflow import keras
-from tensorflow.keras import layers
+# import tensorflow as tf
+# from tensorflow import keras
+# from tensorflow.keras import layers
 
 dilation = 1
 seqLength = 300#5 * 12
@@ -659,8 +660,8 @@ def GetBestMrDMD(l1, l2):
     return model, 1
 
 def GetBestSindy(l1, l2):
-    features = pysindy.PolynomialLibrary(degree=5)
-    optimiser = pysindy.STLSQ(threshold=0.0025, max_iter=2000000)
+    features = pysindy.PolynomialLibrary(degree=4)
+    optimiser = pysindy.STLSQ(threshold=0.0025, max_iter=20000000)
     differential = pysindy.FiniteDifference(order=2)
 
     #print(l2.shape)
@@ -673,14 +674,20 @@ def GetBestSindy(l1, l2):
         discrete_time=True
         )
 
-    model.fit(l2.transpose(), u=l1.transpose(), quiet=False)
+    model = pysindy.SINDy(discrete_time=True)
+
+    #model.fit(l2.transpose(), u=l1.transpose(), t=step, quiet=False)
+    model.fit(l2.transpose(), u=l1.transpose(), t=step, quiet=False)
+
+    model.print()
+    model.coefficients()
 
     return model, 1
 
 
 
 outnames = ["Tank Temperature", "Tank Water Volume", "Boiler Wattage"]
-innames = ["Inflow Rate", "Inflow Temperature", "PID Setpoint", "Outflow Rate"]
+innames = ["Inflow Rate", "In Temperature", "PID Setpoint", "Outflow Rate"]
 
 def NameRowCol(x):
     for ax, col in zip(x[0], outnames):
@@ -700,13 +707,26 @@ def NameRowCol(x):
     
 
 def CreateBodePlots(system, savename, appendName):
-    omega = control.freqplot.default_frequency_range(system, Hz=True, number_of_samples=10000) * 10
+    omega = control.freqplot.default_frequency_range(system, Hz=True, number_of_samples=10000)
+
+    #omega = numpy.arange(1e-6, omega[-1], 0.05)
 
     mag, phase, freq = system.freqresp(omega)
 
+    maxY = 105
+    maxTDPI = 300
+    resolution = numpy.array((3840, 2160))
+    TargetDPI = maxTDPI
+    scalar = 2
+
+    solvedSize = resolution / TargetDPI
+    #TargetDPI = TargetDPI * 2
+    #solvedSize = solvedSize * 2
+
     # Matplotlib
-    fig, axes = matplotlib.pyplot.subplots(mag.shape[1], mag.shape[0], dpi=120, figsize=(36,18))
-    fig2, axes2 = matplotlib.pyplot.subplots(mag.shape[1], mag.shape[0], dpi=120, figsize=(36,18))
+    #figSize = (18,9)
+    fig, axes = matplotlib.pyplot.subplots(mag.shape[1], mag.shape[0], dpi=TargetDPI, figsize=solvedSize)
+    fig2, axes2 = matplotlib.pyplot.subplots(mag.shape[1], mag.shape[0], dpi=TargetDPI, figsize=solvedSize)
 
     freq = freq / (2*math.pi)
 
@@ -756,19 +776,27 @@ def CreateBodePlots(system, savename, appendName):
         fig2.savefig("{}_phase.png".format(savename))
 
     fig.clf()
-    fig.clf()
+    fig2.clf()
 
     
 def CreatePolePlots(system, name, appendName):
-    fx = matplotlib.pyplot.figure(dpi=120, figsize=(18/2,18/2))
+    maxY = 105
+    maxTDPI = 375
+    resolution = numpy.array((2048, 2048))
+    TargetDPI = maxTDPI
+
+    solvedSize = resolution / TargetDPI
+    fx = matplotlib.pyplot.figure(dpi=TargetDPI, figsize=solvedSize)
     ax = fx.gca()
-    ax.set_ylim(-2, 2)
-    ax.set_xlim(-2, 2)
+    #ax.set_ylim(-2, 2)
+    #ax.set_xlim(-2, 2)
+    ax.set_ylim(-1.5, 1.5)
+    ax.set_xlim(-1.5, 1.5)
     
     for i in system.pole():
         rScale = i.real
         iScale = i.imag
-        ax.plot([rScale],  [iScale],  'ro--')
+        ax.plot([rScale],  [iScale],  'rx--')
 
     ##matplotlib.pyplot.xlim([f_fft.min()/1e3, f_fft.max()/1e3])
     ax.set_xlabel("Real")
@@ -876,4 +904,67 @@ def DetectorFunction(history, feedback, timeBase, system):
     return False
 
 
+def GetDMDcRetrainMagnitudes():
+    # Allocate
+    Amats = []
+    Bmats = []
+    Cmats = []
+    Dmats = []
 
+    # Get all files
+    _, _, names = next(os.walk("./"), (None, None, []))
+
+
+    runningLimit = 0
+    for i in names:
+        if i.endswith(".pickle"):
+            print(i)
+            _, pt1 = i.split("RT", 1)
+            index, _ = pt1.split(".", 1)
+
+            index = int(index)
+
+            if index > runningLimit:
+                runningLimit = index
+
+
+    print("Found {} files".format(runningLimit + 1))
+
+
+    # Pull into memory
+    for i in range(runningLimit + 1):
+        with open("DMDc_RT{}.pickle".format(i), "rb+") as f:
+            A,B,C,D = pickle.load(f)
+
+            Amats.append(A)
+            Bmats.append(B)
+            Cmats.append(C)
+            Dmats.append(D)
+
+    # Convert
+    Amats = numpy.array(Amats)
+    Bmats = numpy.array(Bmats)
+    Cmats = numpy.array(Cmats)
+    Dmats = numpy.array(Dmats)
+
+
+    # Calculate Differences
+    ATDiff = numpy.diff(Amats, axis=0)
+    BTDiff = numpy.diff(Bmats, axis=0)
+    CTDiff = numpy.diff(Cmats, axis=0)
+    DTDiff = numpy.diff(Dmats, axis=0)
+
+    # Sum to single abs
+    ADiff = numpy.sum(numpy.abs(ATDiff))
+    ADiffx = numpy.sum(numpy.abs(ATDiff), axis=0)
+    BDiffx = numpy.sum(numpy.abs(BTDiff), axis=0)
+
+    ADiffx = numpy.sum(ATDiff, axis=0)
+    BDiffx = numpy.sum(BTDiff, axis=0)
+
+    print(BDiffx.shape)
+
+    AMatrixDifferenceMags = numpy.sum(numpy.sum(numpy.abs(ATDiff), axis=2), axis=1)
+    BMatrixDifferenceMags = numpy.sum(numpy.sum(numpy.abs(ATDiff), axis=2), axis=1)
+
+    return AMatrixDifferenceMags, BMatrixDifferenceMags

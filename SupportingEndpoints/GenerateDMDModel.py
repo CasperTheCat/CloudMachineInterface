@@ -118,6 +118,10 @@ cacheB = asb.B
 system = control.ss(cacheA, cacheB, numpy.identity(cacheA.shape[0]), numpy.zeros(cacheB.shape), Utils.GetTimeStep())
 Utils.CreateBodeAndPolePlots(system, "DMDc", True)
 
+with open("DMDc_RT{}.pickle".format(0), "wb+") as f:
+    #ss = control.ss(cacheA, cacheB, numpy.identity(cacheA.shape[0]), numpy.zeros(cacheB.shape), Utils.GetTimeStep())
+    pickle.dump(control.ssdata(system), f)
+
 print(cacheA.shape)
 
 

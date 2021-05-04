@@ -31,6 +31,119 @@ import czt
 from past.utils import old_div
 import inspect
 import gc
+from scipy.fftpack import rfft, irfft, fftfreq, fft, rfftfreq
+
+
+def ScrubAboveFreqFFT(x, FreqCutoff=0.035, timeBase=0, FreqCutoffUpper=0.055):
+    global dmdModel
+
+    print(x.shape)
+
+    # Okay, we do some transforms
+    B = dmdModel.B
+    invB = numpy.linalg.pinv(B)
+
+    ## Copy it
+    PreU = x.copy().transpose()[:4].transpose()
+
+    ModifiedOutput = numpy.zeros((PreU.shape[0], 3))
+
+    #print("NB: Max Freq: {}".format(Utils.GetDetectableFrequency()))
+
+    for sample in range(PreU.shape[0]):
+        workingData = PreU[sample]
+        ModU = B.dot(workingData)
+        ModifiedOutput[sample] = ModU
+        
+    tx = ModifiedOutput.transpose()
+    tx = PreU.transpose()
+    #print("Hdskfjaskdjf", tx.shape)
+
+    for signalIter in range(tx.shape[0]):
+        f_signal = rfft(tx[signalIter])
+        W = rfftfreq(tx[signalIter].size, d=Utils.GetTimeStep())
+
+        cutFreqs = W <= FreqCutoff
+        cutHigh = W > FreqCutoffUpper
+
+        tryNotXoring = ((~cutFreqs) * (~cutHigh))
+
+        cut_f_signal = f_signal.copy()
+        cut_f_signal[tryNotXoring] = 0  # filter all frequencies between
+
+        cut_signal = irfft(cut_f_signal)
+        tx[signalIter] = cut_signal
+
+        maxY = 105
+        maxTDPI = 180
+        resolution = numpy.array((3840, 2160)) / 2
+        TargetDPI = maxTDPI
+        scalar = 2
+        solvedSize = resolution / TargetDPI
+
+        # if (timeBase + 1) % 100 == 0:
+        #     f0 = matplotlib.pyplot.figure(8, dpi=TargetDPI, figsize=solvedSize)
+        #     f0.clf()
+        #     a0 = f0.gca()
+        #     #matplotlib.pyplot.plot(f_fft / 1e3, np.angle(sig_fft), 'k',    label='FFT')
+        #     a0.plot(numpy.arange(tx.shape[1]) / Utils.GetTimeStep(), cut_f_signal, label='CZT')
+        #     a0.set_xlabel("Frequency (Hz)")
+        #     a0.set_ylabel("Signal phase. (Degrees)")
+        #     ##matplotlib.pyplot.xlim([f_fft.min()/1e3, f_fft.max()/1e3])
+        #     #matplotlib.pyplot.legend()
+        #     a0.set_title(Utils.outnames[signalIter])
+        #     f0.savefig("WW_step.{}_dilation.{}_esr.{}_ssr.{}_{}_TTL.png".format(Utils.step, Utils.dilation, 2 * Utils.GetDetectableFrequency(), Utils.GetSimulatorFrequency(), signalIter))
+       
+        #input()
+
+
+    #restore data
+    origState = x.transpose()[4:]
+    tx = numpy.concatenate((tx, origState))
+
+    print(tx.shape)
+    return tx.transpose()
+
+    # unflip tx
+    ModifiedOutput = tx.transpose()
+
+    for sample in range(PreU.shape[0]):
+        workingData = ModifiedOutput[sample] 
+        ModU = invB.dot(workingData)
+        PreU[sample] = ModU
+
+    origState = x.transpose()[4:]
+    PreU = numpy.concatenate((PreU.transpose(), origState))
+
+    #print(origState.shape)
+
+    return PreU.transpose()
+
+
+
+
+def ScrubAboveFreq(x, FreqCutoff=0.025, timeBase=0, FreqCutoffUpper=0.06):
+    tx = x.copy().transpose()
+    
+    for signalIter in range(tx.shape[0]):
+        freq, sig_f = czt.time2freq(numpy.arange(timeBase, timeBase + x.shape[0]) * Utils.GetTimeStep(), tx[signalIter])
+
+        # remove 
+        cutFreqs = abs(freq) <= FreqCutoff
+        cutHigh = abs(freq) > FreqCutoffUpper
+
+        tryNotXoring = ~((~cutFreqs) * (~cutHigh))
+
+        sig_f = sig_f * tryNotXoring
+
+        #print(czt.freq2time(freq, sig_f, numpy.arange(timeBase, timeBase + x.shape[0]) * Utils.GetTimeStep()))
+
+        _, tx[signalIter] = czt.freq2time(freq, sig_f, numpy.arange(timeBase, timeBase + x.shape[0]) * Utils.GetTimeStep())
+        
+
+    return tx.transpose()
+
+
 
 def FilterFrequenciesByPower(x, PowerCutoff=0.005, timeBase=0):
     #for signalIter in range(x.shape[0]):
@@ -108,7 +221,7 @@ def FilterFrequenciesByPower(x, PowerCutoff=0.005, timeBase=0):
 
 
 maxY = 105
-maxTDPI = 120
+maxTDPI = 180
 resolution = numpy.array((1920, 1080))
 TargetDPI = maxTDPI
 
@@ -507,6 +620,13 @@ def DMDc_RetrainFunction(history):
     timePassed = time.perf_counter() - evalBeginTime
     costToRT.append(timePassed)
 
+    ss = control.ss(cacheA, cacheB, numpy.identity(cacheA.shape[0]), numpy.zeros(cacheB.shape), Utils.GetTimeStep())
+
+    with open("DMDc_RT{}.pickle".format(rtTimes), "wb+") as f:
+        pickle.dump(control.ssdata(ss), f)
+
+    Utils.CreateBodeAndPolePlots(ss, "DMDc_RT{}".format(rtTimes), True)
+
 def DMDc_DetectorFunction(history, feedback, timeBase):
     global dmdModel
 
@@ -731,16 +851,24 @@ def ThresholdFunction(signedError, absoluteError, singleStep):
     shouldRetrainOnSignError = numpy.abs(numpy.sum(signedError)) > 100
     shouldRetrainOnStepError = numpy.sum(numpy.abs(singleStep)) > 2
 
+    holdout = stepsSinceLastTrain * Utils.GetTimeStep() >= 3600 * 1
+
     # Fixed step. Can be rolled into the return bool
     # But it's here to be readable
     if (shouldRetrainOnFixed):
         tholdRTTimes += 1
     
-    rtReason.append((stepsSinceLastTrain, shouldRetrainOnFixed, shouldRetrainOnAbsError, shouldRetrainOnSignError, shouldRetrainOnStepError))
+    rtReason.append((
+        stepsSinceLastTrain,
+        shouldRetrainOnFixed and holdout,
+        shouldRetrainOnAbsError and holdout,
+        shouldRetrainOnSignError and holdout,
+        shouldRetrainOnStepError and holdout
+        ))
 
     stepsSinceLastTrain += 1
 
-    if (shouldRetrainOnAbsError or shouldRetrainOnFixed or shouldRetrainOnSignError or shouldRetrainOnStepError):
+    if ((shouldRetrainOnAbsError or shouldRetrainOnFixed or shouldRetrainOnSignError or shouldRetrainOnStepError) and holdout):
         stepsSinceLastTrain = 0
         return True
 
@@ -762,26 +890,48 @@ def ZeroAllVars():
     rtTimes = 0
     tholdRTTimes = 0
 
+def ModulateSP_LF(base, i):
+    return 55
+    if i >= 100:
+        #return 95# - storedOverLimit * 2
+        tgFreqHz = 0.05
+
+        # Each sample adds 1 radians per ST
+        # A Hz is 2Pi rads
+        SampleTime = Utils.GetTimeStep()
+        radsPerSecond = 1 / SampleTime
+        hertz = radsPerSecond / (math.pi * 2)
+
+        freqMul = tgFreqHz / hertz
+
+        #print(freqMul, hertz)
+
+        return base + 50 * math.sin(i * freqMul)
+    else:
+        return 45# base
+
 comboBox = [
-    (EvalFunction, RetrainFunction, DetectorFunction, None, None, "OKIDERA.dat"),
-    (DMDc_EvalFunction, DMDc_RetrainFunction, DMDc_DetectorFunction, None, None, "DMDc.dat"),
-    (Sindy_EvalFunction, Sindy_RetrainFunction, Sindy_DetectorFunction, None, None, "Sindy.dat"),
-    (FollowingEvalFunction, BaseRetrainFunction, BaseDetectorFunction, None, None, "FollowCase.dat"),
+    (DMDc_EvalFunction, DMDc_RetrainFunction, DMDc_DetectorFunction, None, None, "DMDc_Raw.dat"),
+    #(DMDc_EvalFunction, DMDc_RetrainFunction, DMDc_DetectorFunction, ScrubAboveFreqFFT, ScrubAboveFreqFFT, "DMDc_FilterBoth.dat"),
+    #(EvalFunction, RetrainFunction, DetectorFunction, None, None, "OKIDERA.dat"),
+    #(DMDc_EvalFunction, DMDc_RetrainFunction, DMDc_DetectorFunction, None, None, "DMDc.dat"),
+    #(Sindy_EvalFunction, Sindy_RetrainFunction, Sindy_DetectorFunction, None, None, "Sindy.dat"),
+    #(FollowingEvalFunction, BaseRetrainFunction, BaseDetectorFunction, None, None, "FollowCase.dat"),
     #(MrDMD_EvalFunction, MrDMD_RetrainFunction, MrDMD_DetectorFunction, "MrDMD.dat"),
-    (BaseEvalFunction, BaseRetrainFunction, BaseDetectorFunction, None, None, "BaseCase.dat"),
+    #(BaseEvalFunction, BaseRetrainFunction, BaseDetectorFunction, None, None, "BaseCase.dat"),
 
 
 #    (EvalFunction, RetrainFunction, DetectorFunction, FilterFrequenciesByPower, None, "OKIDERA_FilterData.dat"),
 #    (Sindy_EvalFunction, Sindy_RetrainFunction, Sindy_DetectorFunction, FilterFrequenciesByPower, None, "Sindy_FilterData.dat"),
 #    #(MrDMD_EvalFunction, MrDMD_RetrainFunction, MrDMD_DetectorFunction, "MrDMD.dat"),
-#    (DMDc_EvalFunction, DMDc_RetrainFunction, DMDc_DetectorFunction, FilterFrequenciesByPower, None, "DMDc_FilterData.dat"),
+#    (DMDc_EvalFunction, DMDc_RetrainFunction, DMDc_DetectorFunction, ScrubAboveFreq, None, "DMDc_FilterData.dat"),
 #    (BaseEvalFunction, BaseRetrainFunction, BaseDetectorFunction, FilterFrequenciesByPower, None, "BaseCase_FilterData.dat"),
     
 
 #    (EvalFunction, RetrainFunction, DetectorFunction, None, FilterFrequenciesByPower, "OKIDERA_FilterTrain.dat"), ## EXCLUDED DUE TO CRASH
 #    (Sindy_EvalFunction, Sindy_RetrainFunction, Sindy_DetectorFunction, None, FilterFrequenciesByPower, "Sindy_FilterTrain.dat"),
 #    #(MrDMD_EvalFunction, MrDMD_RetrainFunction, MrDMD_DetectorFunction, "MrDMD.dat"),
-#    (DMDc_EvalFunction, DMDc_RetrainFunction, DMDc_DetectorFunction, None, FilterFrequenciesByPower, "DMDc_FilterTrain.dat"),
+#    (DMDc_EvalFunction, DMDc_RetrainFunction, DMDc_DetectorFunction, None, ScrubAboveFreq, "DMDc_FilterTrain.dat"),
 #    (BaseEvalFunction, BaseRetrainFunction, BaseDetectorFunction, None, FilterFrequenciesByPower, "BaseCase_FilterTrain.dat"),
 
 #    (ML_EvalFunction, ML_RetrainFunction, ML_DetectorFunction, None, None, "Recurrent.dat"),
@@ -798,7 +948,7 @@ for evf, rtf, dtf, flt, rtfflt, name in comboBox:
         continue
 
     graphing = Graphing.AGraphHolder(seed, spTemp, spTarg, dlp)
-    _, results, timeResults = graphing.TestRetraining(evf, rtf, ThresholdFunction, 16384*8, detectorFunction=dtf, filterFunction=flt, retrainFilter=rtfflt, name=name)
+    _, results, timeResults = graphing.TestRetraining(evf, rtf, ThresholdFunction, 16384*8, detectorFunction=dtf, filterFunction=flt, retrainFilter=rtfflt, name=name, modulator=ModulateSP_LF)
     #graphing.TestRetrainLive(maxY, solvedSize, TargetDPI, iTime, color, evf, rtf, ThresholdFunction, 300, ["Temperature (C)", "Heater Power (kW)", "Water Level (L)", "Target Temperature (C)", "Cosine Sim.", "Error"], filterFunction=flt, retrainFilter=rtfflt)
 
     with open("Error_" + name, "wb+") as f:

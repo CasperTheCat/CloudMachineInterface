@@ -9,6 +9,7 @@ import math
 import sys
 import Utils
 import Graphing
+import pickle
 
 # spTemp = 55
 # spTarg = 75
@@ -100,6 +101,14 @@ class AGraphHolder():
         # If Array is still got data
         if sample < backOffset:
             lh = self.history[arrLength - (Utils.seqLength + backOffset) + sample:(arrLength - backOffset) + sample]
+
+            lh  = numpy.concatenate(
+                [
+                    self.history[arrLength - (Utils.seqLength + backOffset) + sample - 1:(arrLength - backOffset) + sample - 1],
+                    localHistory[:sample]
+                ]
+            )
+
             nextVal = self.history[arrLength - backOffset + sample][:4]
         elif sample < Utils.seqLength:
             lh = numpy.concatenate(
@@ -162,9 +171,120 @@ class AGraphHolder():
         localHistory = numpy.zeros((backOffset + futureOffset, self.history.shape[1]))
         stepErrorOracle = numpy.zeros((backOffset))# + futureOffset, self.history.shape[1]))
 
+        oldSimulators = []
+        oldBoilers = []
+        oldControllers = []
+
+
+        for i in range(backOffset):
+
+            # Try Something
+            oldmodel = pickle.dumps(self.simulator)
+            oldboil = pickle.dumps(self.boiler)
+            oldControl = pickle.dumps(self.boilerController)
+
+            # Append
+            oldSimulators.append(oldmodel)
+            oldBoilers.append(oldboil)
+            oldControllers.append(oldControl)
+
+            self.simulator.SimulateNTicks(step * 100, 1/100)
+
+            hist = [
+                self.boiler.waterInRatePerSecond,
+                self.boiler.GetInflowWaterTemp(),
+                self.boilerController.temperatureSetPoint,
+                #spTemp,
+                self.boiler.waterOutRatePerSecond,
+                self.boiler.GetBoilerWaterTemp(),
+                self.boiler.waterVolCurrent,
+                self.boiler.boilerPerformance * self.boiler.boilerPercent
+            ]
+
+            self.history = self.history[1:]
+            self.history = numpy.concatenate((self.history, [numpy.array(hist)]))
+
+        ## Recreate last 15 entries
+        self.simulator = pickle.loads(oldSimulators[0])
+        self.boiler = pickle.loads(oldBoilers[0])
+        self.boilerController = pickle.loads(oldControllers[0])
+
+        self.simulator.RemoveAllObjects()
+        self.boilerController.Possess(self.boiler)
+        self.simulator.AddObject(self.boiler)
+        self.simulator.AddObject(self.boilerController)
+
+
         try:
             for i in range(loopLimit):
                 print("Overarching {}".format(i))
+                
+                print("We got sim:", len(oldSimulators))
+
+                ## Recreate last 15 entries
+                self.simulator = pickle.loads(oldSimulators[0])
+                self.boiler = pickle.loads(oldBoilers[0])
+                self.boilerController = pickle.loads(oldControllers[0])
+
+                self.simulator.RemoveAllObjects()
+                self.boilerController.Possess(self.boiler)
+                self.simulator.AddObject(self.boiler)
+                self.simulator.AddObject(self.boilerController)
+
+                if (modulator):
+                    self.boilerController.SetTarget(modulator(self.spTarg, i))
+
+                # print(self.boilerController.PID.dbgLastReturn)
+
+                # Advance it 15 fifteen times
+                for overwrite in range(0, backOffset):
+                    # Overwrite the last X values
+                    self.simulator.SimulateNTicks(step * 100, 1/100)
+
+                    #print("Hello", self.boilerController.PID.dbgLastReturn)
+
+                    # if len(oldSimulators) == backOffset:
+                    #     # Try Something
+                    #     oldmodel = pickle.dumps(self.simulator)
+                    #     oldboil = pickle.dumps(self.boiler)
+                    #     oldControl = pickle.dumps(self.boilerController)
+
+                    #     # Append
+                    #     oldSimulators[overwrite] = oldmodel
+                    #     oldBoilers[overwrite] = oldboil
+                    #     oldControllers[overwrite] = oldControl
+
+                    hist = [
+                        self.boiler.waterInRatePerSecond,
+                        self.boiler.GetInflowWaterTemp(),
+                        self.boilerController.temperatureSetPoint,
+                        #spTemp,
+                        self.boiler.waterOutRatePerSecond,
+                        self.boiler.GetBoilerWaterTemp(),
+                        self.boiler.waterVolCurrent,
+                        self.boiler.GetBoilerPerf()
+                    ]
+
+                    print(hist)
+
+                    if overwrite == 0:
+                        # Try Something
+                        oldmodel = pickle.dumps(self.simulator)
+                        oldboil = pickle.dumps(self.boiler)
+                        oldControl = pickle.dumps(self.boilerController)
+
+                        # Append
+                        oldSimulators[0] = oldmodel
+                        oldBoilers[0] = oldboil
+                        oldControllers[0] = oldControl
+
+                        self.history = self.history[1:]
+                        self.history = numpy.concatenate((self.history, [numpy.array(hist)]))                    
+                        self.history[arrLength-backOffset] = numpy.array(hist)
+                    else:
+                        self.history[arrLength - backOffset + overwrite] = numpy.array(hist)
+
+
                 for x in range(1):
                     self.simulator.SimulateNTicks(step * 100, 1/100)
 
@@ -176,7 +296,7 @@ class AGraphHolder():
                         self.boiler.waterOutRatePerSecond,
                         self.boiler.GetBoilerWaterTemp(),
                         self.boiler.waterVolCurrent,
-                        self.boiler.boilerPerformance * self.boiler.boilerPercent
+                        self.boiler.GetBoilerPerf()
                     ]
 
                     if x == 0:
@@ -190,7 +310,7 @@ class AGraphHolder():
                         #prediction, feedback = predictionFunction(self.history[arrLength - (Utils.seqLength + backOffset):arrLength - backOffset], xhat)
 
                         if (filterFunction):
-                            prediction, feedback = predictionFunction(filterFunction(self.history[arrLength - (Utils.seqLength + backOffset):arrLength - backOffset]), xhat, i)
+                            prediction, feedback = predictionFunction(filterFunction(self.history[arrLength - (Utils.seqLength + backOffset):arrLength - backOffset], timeBase=i), xhat, i)
                         else:
                             prediction, feedback = predictionFunction(self.history[arrLength - (Utils.seqLength + backOffset):arrLength - backOffset], xhat, i)
                         
@@ -244,11 +364,14 @@ class AGraphHolder():
                         #delta = delta * Utils.StateOnlyWeight[4]
                         #warningBar.append(delta)          
                         if (warnFunction):
-                            warnFunction(self.history, localHistory, i)
+                            warnFunction(self.history, localHistory, i, oldBoilers)
                         
                         ## Detector
                         if (detectorFunction):
-                            detectorFunction(self.history, xhat, i)#[arrLength - (Utils.seqLength + backOffset):arrLength - backOffset], xhat, i)      
+                            if(filterFunction):
+                                detectorFunction( filterFunction(self.history, timeBase=i), xhat, i)
+                            else:
+                                detectorFunction(self.history, xhat, i)#[arrLength - (Utils.seqLength + backOffset):arrLength - backOffset], xhat, i)      
 
                         # ERROR
                         errorTracking += stepError
@@ -264,8 +387,8 @@ class AGraphHolder():
                             absErrorTracking = 0.0
 
                     # Add
-                    self.history = self.history[1:]
-                    self.history = numpy.concatenate((self.history, [numpy.array(hist)]))
+                    # self.history = self.history[1:]
+                    # self.history = numpy.concatenate((self.history, [numpy.array(hist)]))
 
                     if (modulator):
                         self.boilerController.SetTarget(modulator(self.spTarg, i))
@@ -302,11 +425,24 @@ class AGraphHolder():
                     #warn2.set_xdata(numpy.arange(0, len(dataP)) * simulator.timeDilation)
                     #warn2.set_ydata(data5)
 
+                    print("SHAPED", self.history.transpose()[4][-backOffset])
 
+                    if not len(dataP) == 0:
+                        dataP = numpy.concatenate([dataP[:-backOffset], self.history.transpose()[4][-(min(backOffset, len(dataP))):]])
                     dataP = numpy.concatenate([dataP, [self.boiler.GetBoilerWaterTemp()]])
-                    dataT = numpy.concatenate([dataT, [self.boiler.boilerPercent * self.boiler.boilerPerformance * 0.001]])
+
+                    if not len(dataT) == 0:
+                        dataT = numpy.concatenate([dataT[:-backOffset], self.history.transpose()[6][-(min(backOffset, len(dataT))):] * 0.001 ])
+                    dataT = numpy.concatenate([dataT, [self.boiler.GetBoilerPerf() * 0.001]])
+
+                    if not len(dataX) == 0:
+                        dataX = numpy.concatenate([dataX[:-backOffset], self.history.transpose()[2][-(min(backOffset, len(dataX))):]])
                     dataX = numpy.concatenate([dataX, [self.boilerController.temperatureSetPoint]])
+
+                    if not len(dataS) == 0:
+                        dataS = numpy.concatenate([dataS[:-backOffset], self.history.transpose()[5][-(min(backOffset, len(dataS))):]])
                     dataS = numpy.concatenate([dataS, [self.boiler.waterVolCurrent]])
+
                     dataClose = numpy.concatenate([dataClose, [numpy.sum(absErrorTracking) * 0.01]])
                     dataFar = numpy.concatenate([dataFar, [0]])
                     #dataDiff = numpy.concatenate([dataDiff, [abs(ldiff - rdiff)]])
@@ -364,6 +500,7 @@ class AGraphHolder():
                     ax.set_xlim(left=-5, right=len(predDataP) * self.simulator.timeDilation * step +5)
                     #ax2.fill_between(x, len(dataP) * self.simulator.timeDilation * step +5, len(predDataP) * self.simulator.timeDilation * step +5, facecolor='green', alpha=0.5)
                     #ax2.fill_between(numpy.arange(0, len(dataP)) * self.simulator.timeDilation * step, 0, 1, where=x > (len(dataP) * self.simulator.timeDilation * step), facecolor='green', alpha=0.5)
+                    
                     ax2.fill_between(numpy.arange(len(dataP) - 1, len(predDataP)) * self.simulator.timeDilation * step, 0, maxY, facecolor='purple', alpha=0.25)
                     ax2.fill_between(numpy.arange(len(dataP) - (1 + backOffset), len(dataP)) * self.simulator.timeDilation * step, 0, maxY, facecolor='pink', alpha=0.25)
 
@@ -389,6 +526,7 @@ class AGraphHolder():
                     # print("[TIME {:.02f}s] PID: {:.02f}i".format((i + 1) * simulator.timeDilation, boilerController.PID.iVal))
                     # print("[TIME {:.02f}s] PIDdbg: {}".format((i + 1) * simulator.timeDilation, boilerController.PID.dbgLastReturn))
 
+                # Finally, add a
         except Exception as e:
             raise(e)
             pass
@@ -412,7 +550,7 @@ class AGraphHolder():
         dataClose = []
 
         resolution = numpy.array((1920, 1080))
-        TargetDPI = 96
+        TargetDPI = 260
         solvedSize = resolution / TargetDPI
 
         fig, ax, packedAxis1 = MakeLiveMap2(110, solvedSize, TargetDPI, 30, (0.05,0.05,0.05), labelOverrides=["Temperature (C)", "Heater Power (kW)", "Water Level (L)", "Target Temperature (C)", "Error"])
@@ -467,7 +605,10 @@ class AGraphHolder():
 
             ## Oracle
             for sample in range(1, backOffset):
-                (futurePrediction, futureFeedback), nextVal = self.CoreSample(predictionFunction, filterFunction(localHistory, timeBase=i+sample), localXhat, sample, backOffset, arrLength, i+sample, flt=filterFunction)
+                if (filterFunction):
+                    (futurePrediction, futureFeedback), nextVal = self.CoreSample(predictionFunction, filterFunction(localHistory, timeBase=i+sample), localXhat, sample, backOffset, arrLength, i+sample, flt=filterFunction)
+                else:
+                    (futurePrediction, futureFeedback), nextVal = self.CoreSample(predictionFunction, localHistory, localXhat, sample, backOffset, arrLength, i+sample, flt=filterFunction)
 
                 localXhat = futureFeedback
 
@@ -537,7 +678,7 @@ class AGraphHolder():
 
 
 
-            if i % 10 == 0:
+            if i % 100000 == 0 or ((i & (i-1) == 0) and i != 0):
                 framerate = self.ProcessAvgFramerate()
                 if (framerate != 0):
                     print("{} - ETA: {:.2f}s. Rate: {:.2f} eops. (Covering {:.2f}s)".format(
@@ -636,6 +777,10 @@ class AGraphHolder():
                         localHistory[sample] = numpy.concatenate((nextVal, futurePrediction))
 
                         stepError = self.history[arrLength - backOffset + sample] * Utils.ErrorWeights - localHistory[sample] * Utils.ErrorWeights
+
+                        # if sample == 5 or sample == 10 or sample == 100:
+                        #     print(i, sample, stepError)
+
                         #stepError = numpy.abs(stepError)
                         offsetResults[sample].append(stepError)
 
@@ -681,7 +826,20 @@ class AGraphHolder():
 
 
             if i % 10 == 0:
-                print("{} - ETA: {:.2f}s. Rate: {:.2f} eops. (Covering {:.2f}s)".format(i, (loopLimit - i) / self.ProcessAvgFramerate(), self.ProcessAvgFramerate() * backOffset, self.ProcessAvgFramerate() * Utils.dilation * Utils.step))
+                framerate = self.ProcessAvgFramerate()
+                if (framerate != 0):
+                    print("{} - ETA: {:.2f}s. Rate: {:.2f} eops. (Covering {:.2f}s)".format(
+                        i,
+                        (loopLimit - i) / framerate,
+                        framerate * backOffset,
+                        framerate * Utils.dilation * Utils.step
+                    ))
+                else:
+                    print("{} - ETA: INF. Rate: {:.2f} eops. (Covering {:.2f}s)".format(
+                        i,
+                        framerate * backOffset,
+                        framerate * Utils.dilation * Utils.step
+                    ))
 
             # Perf Timers
             endPerfTime = time.perf_counter()
@@ -990,8 +1148,12 @@ def MakeLiveMap(maxY, solvedSize, TargetDPI, iTime, targetColour, labelOverrides
     four2, = ax2.plot([],[], linestyle="--")
     warn2, = ax2.plot([],[], linestyle="dotted")
 
-    ax.yaxis.grid(True, color='white')
-    ax2.yaxis.grid(True, color='white')
+    if(numpy.sum(targetColour) > 1.5):
+        ax.yaxis.grid(True, color='black')
+        ax2.yaxis.grid(True, color='black')
+    else:
+        ax.yaxis.grid(True, color='white')
+        ax2.yaxis.grid(True, color='white')
 
     if labelOverrides:
         if len(labelOverrides) > 0:
@@ -1041,28 +1203,52 @@ def MakeLiveMap(maxY, solvedSize, TargetDPI, iTime, targetColour, labelOverrides
     ax2.set_facecolor(targetColour)
     fig.set_facecolor(targetColour)
 
-    ax2.set_xlabel("Window Time (Seconds)", color='white')
-    ax.set_ylabel("Temperature (°C) / Power (%) / Water Level (L)", color='white')
-    ax.set_ylabel("True Values", color='white')
-    ax2.set_ylabel("Future Trend Values", color='white')
-    ax.set_ylim(top=maxY, bottom=-5)
-    ax2.set_ylim(top=maxY, bottom=-5)
-    #ax.set_ylim(top=maxY, bottom=-100)
-    #ax.set_xlim(left=-5, right=iTime+5)
-    ax.tick_params(axis='x', colors='white')
-    ax.tick_params(axis='y', colors='white')
+    if(numpy.sum(targetColour) > 1.5):
+        ax2.set_xlabel("Window Time (Seconds)", color='black')
+        ax.set_ylabel("Temperature (°C) / Power (%) / Water Level (L)", color='black')
+        ax.set_ylabel("True Values", color='black')
+        ax2.set_ylabel("Future Trend Values", color='black')
+        ax.set_ylim(top=maxY, bottom=-5)
+        ax2.set_ylim(top=maxY, bottom=-5)
+        #ax.set_ylim(top=maxY, bottom=-100)
+        #ax.set_xlim(left=-5, right=iTime+5)
+        ax.tick_params(axis='x', colors='black')
+        ax.tick_params(axis='y', colors='black')
 
-    ax.spines['bottom'].set_color('white')
-    ax.spines['top'].set_color('white') 
-    ax.spines['right'].set_color('white')
-    ax.spines['left'].set_color('white')
+        ax.spines['bottom'].set_color('black')
+        ax.spines['top'].set_color('black') 
+        ax.spines['right'].set_color('black')
+        ax.spines['left'].set_color('black')
 
-    ax2.spines['bottom'].set_color('white')
-    ax2.spines['top'].set_color('white') 
-    ax2.spines['right'].set_color('white')
-    ax2.spines['left'].set_color('white')
-    ax2.tick_params(axis='x', colors='white')
-    ax2.tick_params(axis='y', colors='white')
+        ax2.spines['bottom'].set_color('black')
+        ax2.spines['top'].set_color('black') 
+        ax2.spines['right'].set_color('black')
+        ax2.spines['left'].set_color('black')
+        ax2.tick_params(axis='x', colors='black')
+        ax2.tick_params(axis='y', colors='black')
+    else:
+        ax2.set_xlabel("Window Time (Seconds)", color='white')
+        ax.set_ylabel("Temperature (°C) / Power (%) / Water Level (L)", color='white')
+        ax.set_ylabel("True Values", color='white')
+        ax2.set_ylabel("Future Trend Values", color='white')
+        ax.set_ylim(top=maxY, bottom=-5)
+        ax2.set_ylim(top=maxY, bottom=-5)
+        #ax.set_ylim(top=maxY, bottom=-100)
+        #ax.set_xlim(left=-5, right=iTime+5)
+        ax.tick_params(axis='x', colors='white')
+        ax.tick_params(axis='y', colors='white')
+
+        ax.spines['bottom'].set_color('white')
+        ax.spines['top'].set_color('white') 
+        ax.spines['right'].set_color('white')
+        ax.spines['left'].set_color('white')
+
+        ax2.spines['bottom'].set_color('white')
+        ax2.spines['top'].set_color('white') 
+        ax2.spines['right'].set_color('white')
+        ax2.spines['left'].set_color('white')
+        ax2.tick_params(axis='x', colors='white')
+        ax2.tick_params(axis='y', colors='white')
 
     return fig, ax, ax2, (dra, two, three, four, warn, warnfar, warndiff), (dra2, two2, three2, four2, warn2)
 
@@ -1080,7 +1266,11 @@ def MakeLiveMap2(maxY, solvedSize, TargetDPI, iTime, targetColour, labelOverride
 
 
 
-    ax.yaxis.grid(True, color='white')
+    if(numpy.sum(targetColour) > 1.5):
+        ax.yaxis.grid(True, color='black')
+    else:
+        ax.yaxis.grid(True, color='white')
+
 
 
     if labelOverrides:
@@ -1102,18 +1292,31 @@ def MakeLiveMap2(maxY, solvedSize, TargetDPI, iTime, targetColour, labelOverride
     ax.set_facecolor(targetColour)
     fig.set_facecolor(targetColour)
 
-    ax.set_xlabel("Window Time (Seconds)", color='white')
-    ax.set_ylabel("Raw Values", color='white')
+    if(numpy.sum(targetColour) > 1.5):
+        ax.set_xlabel("Window Time (Seconds)", color='black')
+        ax.set_ylabel("Raw Values", color='black')
+    else:
+        ax.set_xlabel("Window Time (Seconds)", color='white')
+        ax.set_ylabel("Raw Values", color='white')
 
     ax.set_ylim(top=maxY, bottom=-5)
     #ax.set_ylim(top=maxY, bottom=-100)
     #ax.set_xlim(left=-5, right=iTime+5)
-    ax.tick_params(axis='x', colors='white')
-    ax.tick_params(axis='y', colors='white')
+    if(numpy.sum(targetColour) > 1.5):
+        ax.tick_params(axis='x', colors='black')
+        ax.tick_params(axis='y', colors='black')
 
-    ax.spines['bottom'].set_color('white')
-    ax.spines['top'].set_color('white') 
-    ax.spines['right'].set_color('white')
-    ax.spines['left'].set_color('white')
+        ax.spines['bottom'].set_color('black')
+        ax.spines['top'].set_color('black') 
+        ax.spines['right'].set_color('black')
+        ax.spines['left'].set_color('black')
+    else:
+        ax.tick_params(axis='x', colors='white')
+        ax.tick_params(axis='y', colors='white')
+
+        ax.spines['bottom'].set_color('white')
+        ax.spines['top'].set_color('white') 
+        ax.spines['right'].set_color('white')
+        ax.spines['left'].set_color('white')
 
     return fig, ax, (dra, two, three, four, warn)
