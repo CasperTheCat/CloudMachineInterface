@@ -1,5 +1,21 @@
 #!/usr/bin/env python3
 
+##### ##### LICENSE ##### #####
+# Copyright (C) 2021 Chris Anderson
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU Lesser General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU Lesser General Public License for more details.
+#
+# You should have received a copy of the GNU Lesser General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
 import pickle
 import control
 import modred
@@ -29,6 +45,15 @@ disturbs3, states3, targetDisturbs3, targetStates3 = Utils.MakeData(allShape, 35
 disturbs4, states4, targetDisturbs4, targetStates4 = Utils.MakeData(allShape, 85, dilation, seqLength, 18, disabledisturb, step=step, stack=False, seed=8)
 disturbs5, states5, targetDisturbs5, targetStates5 = Utils.MakeData(allShape, 95, dilation, seqLength, 7, disabledisturb, step=step, stack=False, seed=11)
 
+
+
+offset = Utils.offset
+#l1 = states.transpose()
+#disturbs = Utils.TailState(disturbs, offset)
+print(disturbs.shape)
+exit()
+
+
 disturbs = numpy.concatenate((disturbs, disturbs2, disturbs3, disturbs4, disturbs5))
 states = numpy.concatenate((states, states2, states3, states4, states5))
 # targetDisturbs = numpy.concatenate((targetDisturbs, targetDisturbs2, targetDisturbs3))
@@ -45,7 +70,6 @@ inVal = numpy.concatenate((val_disturbs, val_states), axis=1)
 print(inFeed.shape)
 #inVal = numpy.concatenate((val_disturbs, val_states), axis=2)
 
-offset = Utils.offset
 
 #print(ins.shape)
 
@@ -62,10 +86,10 @@ l1 = l1t.transpose()
 l2 = l1t.transpose()
 v2 = v2t.transpose()
 
-#l1 = states.transpose()
-l1 = Utils.TailState(l1, offset)
-l2 = Utils.TailState(l2, offset)[4]
-v2 = Utils.TailState(v2, offset)
+# #l1 = states.transpose()
+# l1 = Utils.TailState(l1, offset)
+# l2 = Utils.TailState(l2, offset)[4]
+# v2 = Utils.TailState(v2, offset)
 
 # Retranspose
 l1t = l1.transpose()

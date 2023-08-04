@@ -1,5 +1,21 @@
 #!/usr/bin/env python3
 
+##### ##### LICENSE ##### #####
+# Copyright (C) 2021 Chris Anderson
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU Lesser General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU Lesser General Public License for more details.
+#
+# You should have received a copy of the GNU Lesser General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
 from ProcessSimulation import CSimulator
 from ProcessSimulation import AActor, ABoiler, ABoilerController
 import time
@@ -12,7 +28,7 @@ import math
 import datetime
 import sys
 import Utils
-import BEEP
+import Graphing
 import pandas
 
 sheetName = "Boiler.csv"
@@ -52,7 +68,7 @@ color = (0.05,0.05,0.05)
 
 
 
-fig, ax, ax2, packedAxis1, packedAxis2 = BEEP.MakeLiveMap(maxY, solvedSize, TargetDPI, iTime, color, labelOverrides=["Static pressure below the BFW tank (kPa)", "BFW in-line T[°C]", "Flue gas in-line T [°C]", "Hand-held T[°C]"])
+fig, ax, ax2, packedAxis1, packedAxis2 = Graphing.MakeLiveMap(maxY, solvedSize, TargetDPI, iTime, color, labelOverrides=["Static pressure below the BFW tank (kPa)", "BFW in-line T[°C]", "Flue gas in-line T [°C]", "Hand-held T[°C]"])
 
 dra, two, three, four, warn, warnfar, warndiff = packedAxis1
 dra2, two2, three2, four2, warn2 = packedAxis2

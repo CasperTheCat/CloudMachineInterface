@@ -1,7 +1,20 @@
 #!/usr/bin/env python3
 
-# Simulator for the water boiler
-# No dontrol done here
+##### ##### LICENSE ##### #####
+# Copyright (C) 2021 Chris Anderson
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU Lesser General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU Lesser General Public License for more details.
+#
+# You should have received a copy of the GNU Lesser General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 from .Controller import AController
 from .PID import PIDController
@@ -16,7 +29,13 @@ class ABoilerController(AController):
         self.temperatureSetPoint = setpoint
         self.Pawn = None
         #self.PID = PIDController(setpoint, 100, 0, 0)
+
+        # Below PID is used for most tests
         self.PID = PIDController(setpoint, 32, 0.00125, 8)
+
+        # Uncomment this one for the Chapter 7 tests
+        self.PID = PIDController(setpoint, 32, 0.0025, 8)
+
         #self.PID = StdPIDController(setpoint, 2, 4000, 8000)
         self.accTime = 0
         self.bRunDisturb = True
@@ -27,7 +46,8 @@ class ABoilerController(AController):
         self.boilerDegraderSeconds = 80000 + max(0, self.rng.gauss(1, 0.5)) * 40000
         self.boilerStickyStart = 40000 + max(0, self.rng.gauss(1, 0.5)) * 25000
         self.boilerStickyEnd = self.boilerStickyStart + max(0, self.rng.gauss(1, 0.5)) * 30000
-        self.boilerStickyAmount = 300 + max(0, self.rng.gauss(1, 0.5)) * 1200
+        self.boilerStickyAmount = 0 + max(0, self.rng.gauss(1, 0.5)) * 1200
+        
         self.boilerPOutScale = 0.5 + max(0, self.rng.gauss(1, 0.5))
         self.boilerPInScale = 0.5 + max(0, self.rng.gauss(1, 0.5))
         self.boilerPOutOffsetScale1 = 30 + max(0, self.rng.gauss(1, 0.5)) * 1000
@@ -40,6 +60,8 @@ class ABoilerController(AController):
         self.inWaterBase = max(0, self.rng.gauss(1, 0.5)) * 20
         self.inWaterFlux = 5 + max(0, self.rng.gauss(1, 0.5)) * 10
         self.inWaterTemp = max(0, self.rng.gauss(1, 0.5)) * self.inWaterFlux
+
+        self.boilerGoneSeconds = 80000 + max(0, self.rng.gauss(1, 0.5)) * 40000
 
         print("self.boilerDegraderSeconds is {}".format(self.boilerDegraderSeconds))
         print("self.boilerStickyStart is {}".format(self.boilerStickyStart))
@@ -55,6 +77,7 @@ class ABoilerController(AController):
         print("self.boilerPInOffsetScale3 is {}".format(self.boilerPInOffsetScale3))
         print("self.inWaterBase is {}".format(self.inWaterBase))
         print("self.inWaterTemp is {}. Flux is {}".format(self.inWaterTemp,self.inWaterFlux))
+        print("self.boilerGoneSeconds is {}".format(self.boilerGoneSeconds))
 
         super().__init__()
 
@@ -78,8 +101,8 @@ class ABoilerController(AController):
             self.accTime += DeltaTime
 
             if self.bRunDisturb:
-                boilerDegrader = max(0, self.accTime - self.boilerDegraderSeconds) / self.boilerDegraderSeconds # After 200000, we reach peak bad boilerism
-                self.Pawn.SetBoilerPerformancePercentage(1 - boilerDegrader * 0.5)
+                boilerDegrader = min(1, max(0, self.accTime - self.boilerDegraderSeconds) / self.boilerGoneSeconds) # After 200000, we reach peak bad boilerism
+                self.Pawn.SetBoilerPerformancePercentage(1 - boilerDegrader * 0.60)
 
                 boilerStickyControls = (max(0, self.accTime - self.boilerStickyStart) / self.boilerStickyEnd)
                 self.Pawn.SetBoilerControlTimeOffset(300 + self.boilerStickyAmount * boilerStickyControls)

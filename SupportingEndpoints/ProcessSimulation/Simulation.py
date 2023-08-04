@@ -1,5 +1,21 @@
 #!/usr/bin/env python3
 
+##### ##### LICENSE ##### #####
+# Copyright (C) 2021 Chris Anderson
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU Lesser General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU Lesser General Public License for more details.
+#
+# You should have received a copy of the GNU Lesser General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
 import threading
 import time
 import numpy
@@ -12,10 +28,10 @@ class CSimulator(object):
         self.lastFrame = 0
         self.lastCollection = 0
         self.bIsPlaying = False
-        self.objLock = threading.Lock()
-        self.objCV = threading.Condition(self.objLock)
+        #self.objLock = threading.Lock()
+        #self.objCV = threading.Condition(self.objLock)
         self.shouldRun = True
-        self.trSimThread = threading.Thread(target=self.RootTick, args=[])
+        #self.trSimThread = threading.Thread(target=self.RootTick, args=[])
         #self.trGarbageCollectionThread = threading.Thread(target=self.Reaper, args=[])
 
         self.lastUpdateTimes = numpy.array([0])
@@ -26,25 +42,29 @@ class CSimulator(object):
         # Can we get control of the cv?
         obj = nObj(*params)
 
-        with self.objLock:
-            self.objects.append(obj)
+        #with self.objLock:
+        self.objects.append(obj)
 
         return obj
 
 
     def AddObject(self, nObj):
         # Can we get control of the cv?
-        with self.objLock:
-            self.objects.append(nObj)
+        #with self.objLock:
+        self.objects.append(nObj)
 
         return nObj
-            
+
+    def RemoveAllObjects(self):
+        # Can we get control of the cv?
+        #with self.objLock:
+        self.objects = []            
 
     def BeginPlay(self):
         if not self.bIsPlaying:
             self.lastFrame = time.perf_counter()
             self.lastCollection = time.perf_counter()
-            self.trSimThread.start()
+            #self.trSimThread.start()
             self.bIsPlaying = True
 
 
@@ -55,7 +75,8 @@ class CSimulator(object):
         delayCount = 0
 
         while limit < nticks:
-            with self.objLock:
+            #with self.objLock:
+            if True:
                 # Update last frame (It's the start of the frame)
                 # That way, time is consistent over the whole frame
                 deltaTime = timestep * self.timeDilation
@@ -89,7 +110,8 @@ class CSimulator(object):
 
 
     def SetTimeDilation(self, val):
-        with self.objLock:
+        #with self.objLock:
+        if True:
             self.timeDilation = val
 
 
@@ -102,14 +124,15 @@ class CSimulator(object):
 
 
     def Reaper(self):
-        while self.shouldRun:
-            with self.objCV:
-                while time.time() - self.lastCollection < 30.0:
-                    self.objCV.wait()
+        return False
+        # while self.shouldRun:
+        #     with self.objCV:
+        #         while time.time() - self.lastCollection < 30.0:
+        #             self.objCV.wait()
 
-                for i in self.objects:
-                    if i.isDead:
-                        del i
+        #         for i in self.objects:
+        #             if i.isDead:
+        #                 del i
 
 
     def Shutdown(self):
@@ -126,7 +149,8 @@ class CSimulator(object):
         timeFudge = 0
 
         while self.shouldRun:
-            with self.objLock:
+            if True:
+            #with self.objLock:
                 # Time since last update
                 lastUpdateTime = self.lastFrame
                 thisUpdateTime = time.perf_counter()
